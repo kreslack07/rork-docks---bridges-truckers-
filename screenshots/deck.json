@@ -1,0 +1,52 @@
+{
+  "theme": {
+    "style": "Deep industrial night world built from midnight navy, charcoal steel, and smoldering hazard-orange. Moody cinematic lighting evokes long-haul darkness and high-stakes precision. Backgrounds carry a raw, road-worn premium texture — metallic gradients, volumetric light, and cool-to-warm color shifts that feel like a rig dashboard at 2AM. Every slide feels authoritative and purposeful, not decorative.",
+    "headlineFont": "font-family: 'Inter', sans-serif; import via @import url('https://fonts.googleapis.com/css2?family=Inter:wght@800&display=swap');",
+    "headlineFontSize": 120,
+    "mockupIds": {
+      "iphone": "deep-blue",
+      "ipad": "space-gray"
+    },
+    "palette": {
+      "primary": "#0C1B2E",
+      "secondary": "#1B3A5C",
+      "accent": "#F97316"
+    }
+  },
+  "slides": [
+    {
+      "label": "Map Overview",
+      "backgroundPrompt": "Abstract digital art featuring vast sweeping arcs of deep midnight navy and dark charcoal flowing across a near-black expanse, with thin luminous threads of cool steel-blue cutting diagonally from lower-left to mid-frame, a soft volumetric indigo light pooling gently at center-right casting subtle cool bloom, the upper 30% settling into a calm deep near-black. Fine grain texture across the surface with depth-of-field blur dissolving at the outer edges. 8K quality, ultra smooth gradients, premium feel, no text, no letters, no UI elements, no device mockups",
+      "backgroundUrl": "https://r2-pub.rork.com/app-store-screenshots/6d15facc-ffa1-47c2-ac51-b06e181bb8a4.png"
+    },
+    {
+      "label": "Hazards List",
+      "backgroundPrompt": "3D rendered abstract scene with a dramatic burst of molten tangerine-orange and deep ember light erupting from the lower-right corner against a near-black charcoal backdrop, casting long dramatic rim lighting upward and outward in warm orange tones, dark smoke wisps curling softly through the mid-frame, translucent glass shards catching scattered orange glow in the lower half. The upper 30% dissolves into a deep, calm charcoal silence. 8K quality, ultra smooth gradients, premium feel, no text, no letters, no UI elements, no device mockups",
+      "backgroundUrl": "https://r2-pub.rork.com/app-store-screenshots/2a7b00b8-f711-4138-82e4-8f3ed20d4b22.png"
+    },
+    {
+      "label": "Route Planning",
+      "backgroundPrompt": "Abstract digital art of layered translucent planes of deep steel-blue and midnight navy stacked at shallow converging angles, soft arctic-blue light bleeding from the left edge and tracing each plane's rim in pale cool luminance, deep pooled shadows between each layer creating cinematic moody depth, the composition receding into cool darkness on the right side. The upper 30% fades smoothly to near-black charcoal with frosted glass surface texture throughout. 8K quality, ultra smooth gradients, premium feel, no text, no letters, no UI elements, no device mockups",
+      "backgroundUrl": "https://r2-pub.rork.com/app-store-screenshots/c4e10cf7-2b11-4501-a965-b5cecd78515c.png"
+    },
+    {
+      "label": "Search",
+      "backgroundPrompt": "3D rendered abstract composition of a scattered constellation of tiny cool-silver and ice-blue luminous orbs drifting across a vast deep charcoal and midnight navy expanse, connected by hair-thin steel-grey luminous threads, a soft diffused indigo glow pooling quietly in the lower-center of the frame, particles becoming sparser and more distant toward the upper edges. The upper 30% is open, uncluttered, and fades to near-black with subtle fine grain texture. 8K quality, ultra smooth gradients, premium feel, no text, no letters, no UI elements, no device mockups",
+      "backgroundUrl": "https://r2-pub.rork.com/app-store-screenshots/7f1136cc-d559-483d-bcc6-c4df0b9b19be.png"
+    },
+    {
+      "label": "Truck Profile",
+      "backgroundPrompt": "Abstract digital art featuring flowing ribbons of molten gold and warm amber light curving in broad elegant arcs across a deep charcoal and midnight navy background, dramatic cinematic lighting from the lower-left casting rich golden-orange highlights along each ribbon's edge, the ribbons dissolving into fine luminous dust particles in the mid-frame, warm tones cooling gradually toward the top of the canvas. The upper 30% is dark, calm, and near-black with a subtle grain texture and smooth depth blur at the frame edges. 8K quality, ultra smooth gradients, premium feel, no text, no letters, no UI elements, no device mockups",
+      "backgroundUrl": "https://r2-pub.rork.com/app-store-screenshots/6060ef6b-959c-4dbb-a523-71bcac3d8248.png"
+    }
+  ],
+  "headlines": {
+    "en": {
+      "Map Overview": "Know Every<br>Road Ahead",
+      "Hazards List": "Every Hazard<br>Exposed",
+      "Route Planning": "Route<br>Smarter",
+      "Search": "Find It Fast",
+      "Truck Profile": "Built For<br>Your Rig"
+    }
+  }
+}
