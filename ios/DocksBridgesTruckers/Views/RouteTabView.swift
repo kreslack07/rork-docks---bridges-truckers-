@@ -1,7 +1,7 @@
 import SwiftUI
 import MapKit
 
-private nonisolated struct IdentifiableMapItem: Identifiable {
+private struct IdentifiableMapItem: Identifiable {
     let id: String
     let mapItem: MKMapItem
 
@@ -25,6 +25,7 @@ struct RouteTabView: View {
     @State private var searchError: String?
     @State private var routeError: String?
     @State private var cachedNearbyDocks: [Dock] = []
+    @State private var selectedHazard: Hazard?
 
     var body: some View {
         NavigationStack {
@@ -70,23 +71,32 @@ struct RouteTabView: View {
             .background(Color(.systemGroupedBackground))
             .onAppear { updateNearbyDocks() }
             .onChange(of: selectedDestination) { _, _ in updateNearbyDocks() }
+            .sensoryFeedback(.selection, trigger: selectedDestination?.name)
+            .sheet(item: $selectedHazard) { hazard in
+                HazardDetailSheet(hazard: hazard)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+                    .presentationContentInteraction(.scrolls)
+            }
         }
     }
 
     private var routeEmptyState: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 16) {
             Image(systemName: "map.fill")
-                .font(.system(size: 36))
-                .foregroundStyle(.tertiary)
+                .font(.system(size: 44))
+                .foregroundStyle(AppTheme.accent.opacity(0.3))
+
             Text("Plan Your Route")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-            Text("Search for a destination above to check hazards along the way and find nearby docks.")
+                .font(.title3.bold())
+
+            Text("Search for a destination to check hazards along the way and find nearby docks.")
                 .font(.subheadline)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+                .padding(.horizontal, 16)
         }
-        .padding(.vertical, 32)
+        .padding(.vertical, 40)
         .frame(maxWidth: .infinity)
     }
 
@@ -109,6 +119,15 @@ struct RouteTabView: View {
                 .foregroundStyle(.secondary)
             }
             Spacer()
+
+            if viewModel.blockedCount > 0 {
+                HStack(spacing: 3) {
+                    Circle().fill(.red).frame(width: 6, height: 6)
+                    Text("\(viewModel.blockedCount)")
+                        .font(.caption.bold())
+                        .foregroundStyle(.red)
+                }
+            }
         }
         .padding(14)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
@@ -255,46 +274,72 @@ struct RouteTabView: View {
     }
 
     private func routeInfoCard(_ route: MKRoute) -> some View {
-        HStack(spacing: 16) {
-            VStack(spacing: 4) {
-                Image(systemName: "clock")
-                    .foregroundStyle(.secondary)
-                Text(formatDuration(route.expectedTravelTime))
-                    .font(.headline.bold())
-                Text("Travel Time")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+        VStack(spacing: 12) {
+            HStack(spacing: 16) {
+                VStack(spacing: 4) {
+                    Image(systemName: "clock")
+                        .foregroundStyle(.secondary)
+                    Text(formatDuration(route.expectedTravelTime))
+                        .font(.headline.bold())
+                    Text("Travel Time")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+
+                Divider().frame(height: 40)
+
+                VStack(spacing: 4) {
+                    Image(systemName: "road.lanes")
+                        .foregroundStyle(.secondary)
+                    Text(formatDistance(route.distance))
+                        .font(.headline.bold())
+                    Text("Distance")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+
+                Divider().frame(height: 40)
+
+                VStack(spacing: 4) {
+                    Image(systemName: hazardsOnRoute.isEmpty ? "checkmark.shield" : "exclamationmark.triangle")
+                        .foregroundStyle(hazardsOnRoute.isEmpty ? .green : .orange)
+                    Text("\(hazardsOnRoute.count)")
+                        .font(.headline.bold())
+                    Text("Hazards")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity)
 
-            Divider().frame(height: 40)
-
-            VStack(spacing: 4) {
-                Image(systemName: "road.lanes")
-                    .foregroundStyle(.secondary)
-                Text(formatDistance(route.distance))
-                    .font(.headline.bold())
-                Text("Distance")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+            ShareLink(
+                item: routeSummaryText(route),
+                subject: Text("Route Info"),
+                message: Text("Route details from Docks & Bridges")
+            ) {
+                Label("Share Route", systemImage: "square.and.arrow.up")
+                    .font(.subheadline.bold())
+                    .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity)
-
-            Divider().frame(height: 40)
-
-            VStack(spacing: 4) {
-                Image(systemName: hazardsOnRoute.isEmpty ? "checkmark.shield" : "exclamationmark.triangle")
-                    .foregroundStyle(hazardsOnRoute.isEmpty ? .green : .orange)
-                Text("\(hazardsOnRoute.count)")
-                    .font(.headline.bold())
-                Text("Hazards")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity)
+            .buttonStyle(.bordered)
+            .tint(AppTheme.accent)
         }
         .padding(14)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private func routeSummaryText(_ route: MKRoute) -> String {
+        var text = "Route: \(formatDistance(route.distance)), \(formatDuration(route.expectedTravelTime))"
+        if !hazardsOnRoute.isEmpty {
+            let blocked = hazardsOnRoute.filter { viewModel.hazardStatus($0) == .blocked }.count
+            let tight = hazardsOnRoute.filter { viewModel.hazardStatus($0) == .tight }.count
+            text += "\n\(hazardsOnRoute.count) hazards (\(blocked) blocked, \(tight) tight)"
+        }
+        text += "\nTruck: \(viewModel.truckProfile.type.label), \(String(format: "%.1fm", viewModel.truckProfile.height))"
+        text += "\n— Docks & Bridges Trucker"
+        return text
     }
 
     private var hazardsOnRouteSection: some View {
@@ -304,37 +349,52 @@ struct RouteTabView: View {
                     .foregroundStyle(AppTheme.accent)
                 Text("Hazards Near Route")
                     .font(.subheadline.bold())
+                Spacer()
+                Text("\(hazardsOnRoute.count)")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color(.tertiarySystemFill), in: Capsule())
             }
             ForEach(hazardsOnRoute) { hazard in
                 let status = viewModel.hazardStatus(hazard)
-                HStack(spacing: 10) {
-                    Image(systemName: hazard.type.icon)
-                        .font(.caption)
-                        .foregroundStyle(.white)
-                        .frame(width: 28, height: 28)
-                        .background(status.color, in: RoundedRectangle(cornerRadius: 8))
+                Button {
+                    selectedHazard = hazard
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: hazard.type.icon)
+                            .font(.caption)
+                            .foregroundStyle(.white)
+                            .frame(width: 28, height: 28)
+                            .background(status.color, in: RoundedRectangle(cornerRadius: 8))
 
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(hazard.name)
-                            .font(.caption.bold())
-                            .lineLimit(1)
-                        Text(hazard.road)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(hazard.name)
+                                .font(.caption.bold())
+                                .lineLimit(1)
+                            Text(hazard.road)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if hazard.type == .weight_limit, let limit = hazard.weightLimit {
+                            Text(String(format: "%.0ft", limit))
+                                .font(.subheadline.bold())
+                                .foregroundStyle(status.color)
+                        } else {
+                            Text(String(format: "%.1fm", hazard.clearanceHeight))
+                                .font(.subheadline.bold())
+                                .foregroundStyle(status.color)
+                        }
+                        Image(systemName: "chevron.right")
                             .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.tertiary)
                     }
-                    Spacer()
-                    if hazard.type == .weight_limit, let limit = hazard.weightLimit {
-                        Text(String(format: "%.0ft", limit))
-                            .font(.subheadline.bold())
-                            .foregroundStyle(status.color)
-                    } else {
-                        Text(String(format: "%.1fm", hazard.clearanceHeight))
-                            .font(.subheadline.bold())
-                            .foregroundStyle(status.color)
-                    }
+                    .padding(8)
+                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
                 }
-                .padding(8)
-                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
+                .tint(.primary)
             }
         }
     }

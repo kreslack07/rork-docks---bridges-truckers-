@@ -32,4 +32,7 @@ nonisolated enum AppTheme {
         startPoint: .top,
         endPoint: .bottom
     )
+
+    static let subtleCardBackground = Color(.secondarySystemGroupedBackground)
+    static let groupedBackground = Color(.systemGroupedBackground)
 }

@@ -118,6 +118,7 @@ struct FavouritesTabView: View {
                         in: Capsule()
                     )
                 }
+                .sensoryFeedback(.selection, trigger: filterMode)
             }
             Spacer()
         }
@@ -165,11 +166,26 @@ struct FavouritesTabView: View {
                             Image(systemName: "bookmark.fill")
                                 .foregroundStyle(AppTheme.accent)
                         }
+                        .sensoryFeedback(.impact(weight: .light), trigger: viewModel.isFavourite(dock.id))
                     }
                     .padding(12)
                     .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
                 }
                 .tint(.primary)
+                .contextMenu {
+                    Button {
+                        UIPasteboard.general.string = "\(dock.name), \(dock.address), \(dock.city) \(dock.state)"
+                    } label: {
+                        Label("Copy Address", systemImage: "doc.on.doc")
+                    }
+                    Button(role: .destructive) {
+                        withAnimation(.spring(duration: 0.3)) {
+                            viewModel.toggleFavourite(dock.id)
+                        }
+                    } label: {
+                        Label("Remove Favourite", systemImage: "bookmark.slash")
+                    }
+                }
             }
         }
     }
@@ -228,12 +244,22 @@ struct FavouritesTabView: View {
                                     .font(.caption)
                                     .foregroundStyle(AppTheme.accent)
                             }
+                            .sensoryFeedback(.impact(weight: .light), trigger: viewModel.isHazardFavourite(hazard.id))
                         }
                     }
                     .padding(12)
                     .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
                 }
                 .tint(.primary)
+                .contextMenu {
+                    Button(role: .destructive) {
+                        withAnimation(.spring(duration: 0.3)) {
+                            viewModel.toggleHazardFavourite(hazard.id)
+                        }
+                    } label: {
+                        Label("Remove Favourite", systemImage: "bookmark.slash")
+                    }
+                }
             }
         }
     }

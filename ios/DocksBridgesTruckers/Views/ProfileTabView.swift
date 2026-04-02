@@ -66,16 +66,12 @@ struct ProfileTabView: View {
         VStack(spacing: 12) {
             ZStack {
                 Circle()
-                    .fill(AppTheme.navy)
-                    .frame(width: 80, height: 80)
-                Circle()
-                    .fill(AppTheme.accent.opacity(0.15))
-                    .frame(width: 80, height: 80)
+                    .fill(AppTheme.accent.opacity(0.1))
+                    .frame(width: 88, height: 88)
                 Image(systemName: "truck.box.fill")
                     .font(.system(size: 40))
                     .foregroundStyle(AppTheme.accent)
             }
-            .overlay(Circle().stroke(AppTheme.accent.opacity(0.3), lineWidth: 2))
 
             Text(viewModel.truckProfile.name.isEmpty ? "Set Up Your Truck" : viewModel.truckProfile.name)
                 .font(.title2.bold())
@@ -147,6 +143,8 @@ struct ProfileTabView: View {
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
+                .padding(10)
+                .background(Color.red.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
             }
 
             Button {
@@ -368,50 +366,13 @@ struct ProfileTabView: View {
             Button {
                 showResetConfirmation = true
             } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "arrow.counterclockwise")
-                        .foregroundStyle(AppTheme.accent)
-                        .frame(width: 32, height: 32)
-                        .background(AppTheme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Reset to Defaults")
-                            .font(.subheadline.bold())
-                            .foregroundStyle(.primary)
-                        Text("Resets truck profile to Semi-Trailer defaults")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-                .padding(10)
-                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+                settingsRow(icon: "arrow.counterclockwise", iconColor: AppTheme.accent, title: "Reset to Defaults", subtitle: "Resets truck profile to Semi-Trailer defaults")
             }
+
             NavigationLink {
                 PrivacyPolicyView()
             } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "hand.raised.fill")
-                        .foregroundStyle(.blue)
-                        .frame(width: 32, height: 32)
-                        .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Privacy Policy")
-                            .font(.subheadline.bold())
-                            .foregroundStyle(.primary)
-                        Text("How your data is handled")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-                .padding(10)
-                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+                settingsRow(icon: "hand.raised.fill", iconColor: .blue, title: "Privacy Policy", subtitle: "How your data is handled")
             }
 
             .confirmationDialog("Reset Profile?", isPresented: $showResetConfirmation, titleVisibility: .visible) {
@@ -427,6 +388,29 @@ struct ProfileTabView: View {
         }
     }
 
+    private func settingsRow(icon: String, iconColor: Color, title: String, subtitle: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .foregroundStyle(iconColor)
+                .frame(width: 32, height: 32)
+                .background(iconColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.primary)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(10)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+    }
+
     private var versionText: some View {
         VStack(spacing: 4) {
             Text("Docks & Bridges Trucker")
@@ -435,7 +419,7 @@ struct ProfileTabView: View {
             Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0") (\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"))")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
-            Text("Made for Australian truckers")
+            Text("Made for Australian truckers 🇦🇺")
                 .font(.caption2)
                 .foregroundStyle(.quaternary)
         }

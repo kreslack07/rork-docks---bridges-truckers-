@@ -36,6 +36,7 @@ struct HazardDetailSheet: View {
                         Image(systemName: viewModel.isHazardFavourite(hazard.id) ? "bookmark.fill" : "bookmark")
                             .font(.title3)
                             .foregroundStyle(viewModel.isHazardFavourite(hazard.id) ? AppTheme.accent : .secondary)
+                            .contentTransition(.symbolEffect(.replace))
                     }
                     .sensoryFeedback(.impact, trigger: viewModel.isHazardFavourite(hazard.id))
                 }
@@ -93,20 +94,37 @@ struct HazardDetailSheet: View {
                     Text(hazard.description)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .padding(12)
+                        .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10))
                 }
 
-                Button {
-                    let placemark = MKPlacemark(coordinate: hazard.coordinate)
-                    let item = MKMapItem(placemark: placemark)
-                    item.name = hazard.name
-                    item.openInMaps()
-                } label: {
-                    Label("View in Maps", systemImage: "map")
-                        .frame(maxWidth: .infinity)
+                HStack(spacing: 10) {
+                    Button {
+                        let placemark = MKPlacemark(coordinate: hazard.coordinate)
+                        let item = MKMapItem(placemark: placemark)
+                        item.name = hazard.name
+                        item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving])
+                    } label: {
+                        Label("View in Maps", systemImage: "map")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(AppTheme.accent)
+                    .controlSize(.large)
+
+                    ShareLink(
+                        item: hazardShareText,
+                        subject: Text(hazard.name),
+                        message: Text("Hazard info from Docks & Bridges")
+                    ) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.body.bold())
+                            .frame(width: 50, height: 50)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(AppTheme.accent)
+                    .controlSize(.large)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(AppTheme.accent)
-                .controlSize(.large)
             }
             .padding()
         }
@@ -126,5 +144,17 @@ struct HazardDetailSheet: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 10)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var hazardShareText: String {
+        var text = "⚠️ \(hazard.name)\n\(hazard.type.label) — \(hazard.road), \(hazard.city) \(hazard.state)"
+        if hazard.type == .weight_limit, let limit = hazard.weightLimit {
+            text += "\nWeight Limit: \(String(format: "%.0ft", limit))"
+        } else {
+            text += "\nClearance: \(String(format: "%.1fm", hazard.clearanceHeight))"
+        }
+        text += "\nVerified: \(hazard.lastVerified)"
+        text += "\n— Docks & Bridges Trucker"
+        return text
     }
 }

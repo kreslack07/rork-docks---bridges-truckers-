@@ -18,6 +18,19 @@ struct HazardsTabView: View {
                             HazardRowView(hazard: hazard, status: viewModel.hazardStatus(hazard))
                         }
                         .tint(.primary)
+                        .swipeActions(edge: .trailing) {
+                            Button {
+                                withAnimation {
+                                    viewModel.toggleHazardFavourite(hazard.id)
+                                }
+                            } label: {
+                                Label(
+                                    viewModel.isHazardFavourite(hazard.id) ? "Unsave" : "Save",
+                                    systemImage: viewModel.isHazardFavourite(hazard.id) ? "bookmark.slash" : "bookmark.fill"
+                                )
+                            }
+                            .tint(AppTheme.accent)
+                        }
                         .accessibilityLabel("\(hazard.name), \(hazard.type.label), \(viewModel.hazardStatus(hazard).label)")
                     }
                 } header: {
@@ -173,8 +186,6 @@ struct HazardRowView: View {
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
                 .background(status.color.opacity(0.12), in: Capsule())
-
-
             }
         }
         .padding(.vertical, 2)

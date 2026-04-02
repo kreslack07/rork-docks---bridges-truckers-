@@ -58,7 +58,7 @@ struct PrivacyPolicyView: View {
                     body: "If you have questions about this privacy policy, contact us at support@docksbridgestruckers.com."
                 )
 
-                Text("© \(Calendar.current.component(.year, from: Date())) Docks & Bridges Trucker. All rights reserved.")
+                Text("\u{00A9} \(Calendar.current.component(.year, from: Date())) Docks & Bridges Trucker. All rights reserved.")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity)
@@ -73,7 +73,7 @@ struct PrivacyPolicyView: View {
     }
 
     private var formattedDate: String {
-        "1 April 2025"
+        "2 April 2026"
     }
 
     private func policySection(title: String, body: String) -> some View {
