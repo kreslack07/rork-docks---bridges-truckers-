@@ -1,0 +1,9 @@
+{
+  "apps": [
+    {
+      "name": "Docks & Bridges Truckers",
+      "path": "ios",
+      "framework": "swift"
+    }
+  ]
+}
