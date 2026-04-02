@@ -63,11 +63,21 @@
 			);
 			target = XXBC1046A1F0D43053DCEAXX /* HazardWidget */;
 		};
+		AA112233FFEEDDCC00AABB01 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 105FC5792E9EAD3100EA8BCF /* DocksBridgesTruckers */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		105FC57C2E9EAD3100EA8BCF /* DocksBridgesTruckers */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				AA112233FFEEDDCC00AABB01 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+			);
 			path = DocksBridgesTruckers;
 			sourceTree = "<group>";
 		};
@@ -496,6 +506,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = DocksBridgesTruckers/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Docks & Bridges";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -532,6 +543,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = DocksBridgesTruckers/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Docks & Bridges";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Your location is used to show your position on the map and find nearby docks and hazards.";

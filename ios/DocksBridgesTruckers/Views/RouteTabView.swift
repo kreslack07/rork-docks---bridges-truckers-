@@ -1,9 +1,9 @@
 import SwiftUI
 import MapKit
 
-private struct IdentifiableMapItem: Identifiable {
+private nonisolated struct IdentifiableMapItem: Identifiable, Sendable {
     let id: String
-    let mapItem: MKMapItem
+    nonisolated(unsafe) let mapItem: MKMapItem
 
     init(mapItem: MKMapItem) {
         self.mapItem = mapItem

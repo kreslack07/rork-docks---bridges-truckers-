@@ -166,7 +166,7 @@ struct FavouritesTabView: View {
                             Image(systemName: "bookmark.fill")
                                 .foregroundStyle(AppTheme.accent)
                         }
-                        .sensoryFeedback(.impact(weight: .light), trigger: viewModel.isFavourite(dock.id))
+                        .sensoryFeedback(.impact(weight: .light), trigger: viewModel.favouriteDockIDs.count)
                     }
                     .padding(12)
                     .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
@@ -244,7 +244,7 @@ struct FavouritesTabView: View {
                                     .font(.caption)
                                     .foregroundStyle(AppTheme.accent)
                             }
-                            .sensoryFeedback(.impact(weight: .light), trigger: viewModel.isHazardFavourite(hazard.id))
+                            .sensoryFeedback(.impact(weight: .light), trigger: viewModel.favouriteHazardIDs.count)
                         }
                     }
                     .padding(12)

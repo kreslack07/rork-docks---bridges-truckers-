@@ -118,7 +118,7 @@ struct OnboardingView: View {
     }
 }
 
-private nonisolated struct OnboardingPage {
+private struct OnboardingPage {
     let icon: String
     let iconColor: Color
     let title: String
