@@ -28,6 +28,20 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         manager.stopUpdatingLocation()
     }
 
+    func startNavigationMode() {
+        manager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
+        manager.distanceFilter = 10
+        manager.activityType = .automotiveNavigation
+        manager.startUpdatingLocation()
+    }
+
+    func stopNavigationMode() {
+        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        manager.distanceFilter = 100
+        manager.activityType = .other
+        manager.startUpdatingLocation()
+    }
+
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
         Task { @MainActor in

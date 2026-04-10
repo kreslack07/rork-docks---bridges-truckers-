@@ -26,6 +26,8 @@ struct RouteTabView: View {
     @State private var routeError: String?
     @State private var cachedNearbyDocks: [Dock] = []
     @State private var selectedHazard: Hazard?
+    @State private var showNavigation: Bool = false
+    @Environment(NavigationService.self) private var navigationService
 
     var body: some View {
         NavigationStack {
@@ -77,6 +79,9 @@ struct RouteTabView: View {
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
                     .presentationContentInteraction(.scrolls)
+            }
+            .fullScreenCover(isPresented: $showNavigation) {
+                NavigationMapView()
             }
         }
     }
@@ -259,15 +264,18 @@ struct RouteTabView: View {
             }
             Spacer()
             Button {
-                let mapItem = item
-                mapItem.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving])
+                if let route = routeResult {
+                    navigationService.startNavigation(route: route, hazards: hazardsOnRoute)
+                    showNavigation = true
+                }
             } label: {
-                Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
+                Image(systemName: "location.fill")
                     .font(.title3)
                     .foregroundStyle(.white)
                     .frame(width: 40, height: 40)
-                    .background(.green, in: Circle())
+                    .background(.blue, in: Circle())
             }
+            .disabled(routeResult == nil)
         }
         .padding(14)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
@@ -313,6 +321,18 @@ struct RouteTabView: View {
                 }
                 .frame(maxWidth: .infinity)
             }
+
+            Button {
+                navigationService.startNavigation(route: route, hazards: hazardsOnRoute)
+                showNavigation = true
+            } label: {
+                Label("Start Navigation", systemImage: "location.fill")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.blue)
 
             ShareLink(
                 item: routeSummaryText(route),

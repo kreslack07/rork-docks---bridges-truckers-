@@ -5,6 +5,7 @@ struct ContentView: View {
     @State private var locationService = LocationService()
     @State private var notificationService = NotificationService()
     @State private var networkMonitor = NetworkMonitor()
+    @State private var navigationService = NavigationService()
     @State private var selectedTab: AppTab = .map
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding: Bool = false
     @State private var showSplash: Bool = true
@@ -64,6 +65,7 @@ struct ContentView: View {
             .environment(locationService)
             .environment(notificationService)
             .environment(networkMonitor)
+            .environment(navigationService)
             .onAppear {
                 viewModel.notificationService = notificationService
             }
