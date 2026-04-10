@@ -6,7 +6,7 @@ struct ContentView: View {
     @State private var notificationService = NotificationService()
     @State private var networkMonitor = NetworkMonitor()
     @State private var navigationService = NavigationService()
-    @State private var selectedTab: AppTab = .map
+    @State private var selectedTab: AppTab = .route
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding: Bool = false
     @State private var showSplash: Bool = true
     @State private var deepLinkHazard: Hazard?
@@ -36,24 +36,16 @@ struct ContentView: View {
     private var mainContent: some View {
         ZStack(alignment: .top) {
             TabView(selection: $selectedTab) {
-                Tab("Map", systemImage: "map.fill", value: .map) {
-                    MapTabView()
+                Tab("Route", systemImage: "arrow.triangle.turn.up.right.diamond.fill", value: .route) {
+                    RouteTabView()
                 }
 
                 Tab("Hazards", systemImage: "exclamationmark.triangle.fill", value: .hazards) {
                     HazardsTabView()
                 }
 
-                Tab("Search", systemImage: "magnifyingglass", value: .search) {
-                    SearchView()
-                }
-
                 Tab("Favourites", systemImage: "bookmark.fill", value: .favourites) {
                     FavouritesTabView()
-                }
-
-                Tab("Route", systemImage: "arrow.triangle.turn.up.right.diamond.fill", value: .route) {
-                    RouteTabView()
                 }
 
                 Tab("Profile", systemImage: "person.fill", value: .profile) {
@@ -131,10 +123,10 @@ struct ContentView: View {
         case "docks":
             if let dockID = pathComponents.first,
                let dock = viewModel.dock(byID: dockID) {
-                selectedTab = .map
+                selectedTab = .route
                 deepLinkDock = dock
             } else {
-                selectedTab = .map
+                selectedTab = .route
             }
         case "route":
             selectedTab = .route
@@ -143,9 +135,9 @@ struct ContentView: View {
         case "favourites":
             selectedTab = .favourites
         case "search":
-            selectedTab = .search
+            selectedTab = .route
         case "map":
-            selectedTab = .map
+            selectedTab = .route
         default:
             break
         }
@@ -153,5 +145,5 @@ struct ContentView: View {
 }
 
 nonisolated enum AppTab: Hashable, Sendable {
-    case map, hazards, search, favourites, route, profile
+    case route, hazards, favourites, profile
 }

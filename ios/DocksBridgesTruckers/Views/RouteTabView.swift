@@ -1,5 +1,6 @@
 import SwiftUI
 import MapKit
+import CoreLocation
 
 private nonisolated struct IdentifiableMapItem: Identifiable, Sendable {
     let id: String
@@ -15,6 +16,12 @@ private nonisolated struct IdentifiableMapItem: Identifiable, Sendable {
 struct RouteTabView: View {
     @Environment(AppViewModel.self) private var viewModel
     @Environment(LocationService.self) private var locationService
+    @Environment(NavigationService.self) private var navigationService
+
+    @State private var position: MapCameraPosition = .region(MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: -28.0, longitude: 134.0),
+        span: MKCoordinateSpan(latitudeDelta: 30, longitudeDelta: 30)
+    ))
     @State private var destination: String = ""
     @State private var searchResults: [IdentifiableMapItem] = []
     @State private var selectedDestination: MKMapItem?
@@ -24,113 +31,305 @@ struct RouteTabView: View {
     @State private var hazardsOnRoute: [Hazard] = []
     @State private var searchError: String?
     @State private var routeError: String?
-    @State private var cachedNearbyDocks: [Dock] = []
     @State private var selectedHazard: Hazard?
+    @State private var selectedDock: Dock?
     @State private var showNavigation: Bool = false
-    @Environment(NavigationService.self) private var navigationService
+    @State private var sheetDetent: PresentationDetent = .fraction(0.12)
+    @State private var showFilterMenu: Bool = false
+
+    private var nonRouteHazards: [Hazard] {
+        let routeIDs = Set(viewModel.activeRouteHazards.map(\.id))
+        return viewModel.filteredHazards.filter { !routeIDs.contains($0.id) }
+    }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    truckCard
-                    searchSection
-                    if !searchResults.isEmpty && selectedDestination == nil {
-                        searchResultsList
-                    }
-                    if let selected = selectedDestination {
-                        destinationCard(selected)
-                    }
-                    if isCalculating {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 20)
-                    } else if let route = routeResult {
-                        routeInfoCard(route)
-                    }
-                    if let error = searchError {
-                        errorBanner(message: error, icon: "magnifyingglass")
-                    }
-                    if let error = routeError {
-                        errorBanner(message: error, icon: "arrow.triangle.turn.up.right.diamond")
-                    }
-                    if !hazardsOnRoute.isEmpty {
-                        hazardsOnRouteSection
-                    }
-                    if selectedDestination != nil || routeResult != nil {
-                        nearbyDocksSection
-                    }
+        ZStack(alignment: .top) {
+            mapLayer
+                .ignoresSafeArea(edges: .top)
 
-                    if selectedDestination == nil && searchResults.isEmpty && routeResult == nil && !isSearching {
-                        routeEmptyState
+            VStack(spacing: 0) {
+                truckInfoBar
+                    .padding(.horizontal, 12)
+                    .padding(.top, 4)
+
+                Spacer()
+            }
+
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    mapButtons
+                        .padding(.trailing, 12)
+                        .padding(.bottom, 12)
+                }
+            }
+        }
+        .sheet(isPresented: .constant(true)) {
+            dockSheet
+                .presentationDetents([.fraction(0.12), .fraction(0.4), .large], selection: $sheetDetent)
+                .presentationDragIndicator(.visible)
+                .presentationBackgroundInteraction(.enabled(upThrough: .large))
+                .presentationCornerRadius(20)
+                .presentationContentInteraction(.scrolls)
+                .interactiveDismissDisabled()
+        }
+        .sheet(item: $selectedHazard) { hazard in
+            HazardDetailSheet(hazard: hazard)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationContentInteraction(.scrolls)
+        }
+        .sheet(item: $selectedDock) { dock in
+            DockDetailSheet(dock: dock)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationContentInteraction(.scrolls)
+        }
+        .fullScreenCover(isPresented: $showNavigation) {
+            NavigationMapView()
+        }
+        .onAppear {
+            locationService.requestWhenInUseAuthorization()
+            if let loc = locationService.userLocation {
+                position = .region(MKCoordinateRegion(
+                    center: loc.coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5)
+                ))
+            }
+        }
+        .sensoryFeedback(.selection, trigger: selectedDestination?.name)
+    }
+
+    // MARK: - Map
+
+    private var mapLayer: some View {
+        Map(position: $position) {
+            if let route = routeResult {
+                MapPolyline(route.polyline)
+                    .stroke(.blue.opacity(0.3), lineWidth: 12)
+                MapPolyline(route.polyline)
+                    .stroke(.blue, lineWidth: 5)
+            } else if let activeRoute = viewModel.activeRoute {
+                MapPolyline(activeRoute.polyline)
+                    .stroke(AppTheme.accent, lineWidth: 5)
+            }
+
+            ForEach(hazardsOnRoute.isEmpty ? viewModel.activeRouteHazards : hazardsOnRoute) { hazard in
+                Annotation(hazard.name, coordinate: hazard.coordinate) {
+                    Button { selectedHazard = hazard } label: {
+                        HazardAnnotationView(hazard: hazard, status: viewModel.hazardStatus(hazard))
                     }
                 }
-                .padding(.horizontal)
-                .padding(.bottom, 32)
             }
-            .navigationTitle("Route")
-            .scrollDismissesKeyboard(.interactively)
-            .background(Color(.systemGroupedBackground))
-            .onAppear { updateNearbyDocks() }
-            .onChange(of: selectedDestination) { _, _ in updateNearbyDocks() }
-            .sensoryFeedback(.selection, trigger: selectedDestination?.name)
-            .sheet(item: $selectedHazard) { hazard in
-                HazardDetailSheet(hazard: hazard)
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
-                    .presentationContentInteraction(.scrolls)
+
+            ForEach(nonRouteHazards) { hazard in
+                Annotation(hazard.name, coordinate: hazard.coordinate) {
+                    Button { selectedHazard = hazard } label: {
+                        HazardAnnotationView(hazard: hazard, status: viewModel.hazardStatus(hazard))
+                    }
+                }
             }
-            .fullScreenCover(isPresented: $showNavigation) {
-                NavigationMapView()
+
+            ForEach(viewModel.docks) { dock in
+                Annotation(dock.name, coordinate: dock.coordinate) {
+                    Button { selectedDock = dock } label: {
+                        DockAnnotationView(dock: dock)
+                    }
+                }
             }
+
+            if let dest = selectedDestination {
+                Annotation("Destination", coordinate: dest.placemark.coordinate) {
+                    Image(systemName: "flag.checkered.circle.fill")
+                        .font(.title)
+                        .foregroundStyle(.green)
+                        .background(.white, in: Circle())
+                        .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+                }
+            }
+
+            UserAnnotation()
+        }
+        .mapStyle(.standard)
+        .mapControls {
+            MapCompass()
+            MapScaleView()
         }
     }
 
-    private var routeEmptyState: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "map.fill")
-                .font(.system(size: 44))
-                .foregroundStyle(AppTheme.accent.opacity(0.3))
+    // MARK: - Truck Info Bar
 
-            Text("Plan Your Route")
-                .font(.title3.bold())
-
-            Text("Search for a destination to check hazards along the way and find nearby docks.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 16)
-        }
-        .padding(.vertical, 40)
-        .frame(maxWidth: .infinity)
-    }
-
-    private var truckCard: some View {
-        HStack(spacing: 12) {
+    private var truckInfoBar: some View {
+        HStack(spacing: 8) {
             Image(systemName: viewModel.truckProfile.type.icon)
-                .font(.title3)
+                .font(.caption.bold())
                 .foregroundStyle(.white)
-                .frame(width: 44, height: 44)
-                .background(AppTheme.cardGradient, in: RoundedRectangle(cornerRadius: 12))
+                .frame(width: 28, height: 28)
+                .background(AppTheme.cardGradient, in: RoundedRectangle(cornerRadius: 8))
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(viewModel.truckProfile.type.label)
-                    .font(.subheadline.bold())
-                HStack(spacing: 8) {
-                    Label(String(format: "%.1fm", viewModel.truckProfile.height), systemImage: "arrow.up.and.down")
-                    Label(String(format: "%.1ft", viewModel.truckProfile.weight), systemImage: "scalemass")
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                Label(String(format: "%.1fm", viewModel.truckProfile.height), systemImage: "arrow.up.and.down")
+                Label(String(format: "%.1ft", viewModel.truckProfile.weight), systemImage: "scalemass")
             }
+            .font(.caption2.bold())
+            .foregroundStyle(.primary)
+
             Spacer()
 
             if viewModel.blockedCount > 0 {
                 HStack(spacing: 3) {
                     Circle().fill(.red).frame(width: 6, height: 6)
                     Text("\(viewModel.blockedCount)")
-                        .font(.caption.bold())
+                        .font(.caption2.bold())
                         .foregroundStyle(.red)
+                }
+            }
+
+            if viewModel.tightCount > 0 {
+                HStack(spacing: 3) {
+                    Circle().fill(AppTheme.accent).frame(width: 6, height: 6)
+                    Text("\(viewModel.tightCount)")
+                        .font(.caption2.bold())
+                        .foregroundStyle(AppTheme.accent)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .shadow(color: .black.opacity(0.1), radius: 8, y: 2)
+    }
+
+    // MARK: - Map Buttons
+
+    private var mapButtons: some View {
+        VStack(spacing: 8) {
+            Button {
+                if let loc = locationService.userLocation {
+                    withAnimation(.easeInOut(duration: 0.5)) {
+                        position = .region(MKCoordinateRegion(
+                            center: loc.coordinate,
+                            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                        ))
+                    }
+                }
+            } label: {
+                Image(systemName: "location.fill")
+                    .font(.body.bold())
+                    .foregroundStyle(.blue)
+                    .frame(width: 44, height: 44)
+                    .background(.thickMaterial, in: Circle())
+                    .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
+            }
+
+            Button {
+                showFilterMenu = true
+            } label: {
+                Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                    .font(.body.bold())
+                    .foregroundStyle(.primary)
+                    .frame(width: 44, height: 44)
+                    .background(.thickMaterial, in: Circle())
+                    .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
+            }
+            .confirmationDialog("Filter Hazards", isPresented: $showFilterMenu) {
+                ForEach(HazardFilter.allCases, id: \.self) { filter in
+                    Button(filter.label) {
+                        viewModel.hazardFilter = filter
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Dock Sheet
+
+    private var dockSheet: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                searchBar
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+
+                if let error = searchError {
+                    errorBanner(message: error, icon: "magnifyingglass")
+                        .padding(.horizontal, 16)
+                        .padding(.top, 10)
+                }
+                if let error = routeError {
+                    errorBanner(message: error, icon: "arrow.triangle.turn.up.right.diamond")
+                        .padding(.horizontal, 16)
+                        .padding(.top, 10)
+                }
+
+                if !searchResults.isEmpty && selectedDestination == nil {
+                    searchResultsList
+                        .padding(.top, 12)
+                }
+
+                if let selected = selectedDestination {
+                    destinationCard(selected)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                }
+
+                if isCalculating {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 20)
+                } else if let route = routeResult {
+                    routeInfoCard(route)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                }
+
+                if !hazardsOnRoute.isEmpty {
+                    hazardsOnRouteSection
+                        .padding(.horizontal, 16)
+                        .padding(.top, 16)
+                }
+
+                if selectedDestination == nil && searchResults.isEmpty && routeResult == nil && !isSearching {
+                    quickActions
+                        .padding(.horizontal, 16)
+                        .padding(.top, 16)
+                }
+
+                locationPermissionBanner
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+
+                Spacer(minLength: 40)
+            }
+        }
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    // MARK: - Search Bar
+
+    private var searchBar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+                .font(.body)
+
+            TextField("Where to?", text: $destination)
+                .font(.body)
+                .textContentType(.fullStreetAddress)
+                .onSubmit { performSearch() }
+
+            if isSearching {
+                ProgressView()
+                    .scaleEffect(0.8)
+            }
+
+            if !destination.isEmpty {
+                Button {
+                    clearAll()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -138,95 +337,22 @@ struct RouteTabView: View {
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
     }
 
-    private var searchSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Where to?")
-                .font(.headline)
-
-            HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                TextField("Enter destination", text: $destination)
-                    .textContentType(.fullStreetAddress)
-                    .onSubmit { performSearch() }
-                if !destination.isEmpty {
-                    Button {
-                        destination = ""
-                        searchResults = []
-                        selectedDestination = nil
-                        routeResult = nil
-                        hazardsOnRoute = []
-                        searchError = nil
-                        routeError = nil
-                        viewModel.clearRoute()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .padding(12)
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
-
-            Button {
-                performSearch()
-            } label: {
-                Label(isSearching ? "Searching..." : "Search", systemImage: "magnifyingglass")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(AppTheme.accent)
-            .disabled(destination.isEmpty || isSearching)
-
-            if locationService.authorizationStatus == .denied || locationService.authorizationStatus == .restricted {
-                HStack(spacing: 8) {
-                    Image(systemName: "location.slash.fill")
-                        .foregroundStyle(AppTheme.accent)
-                    Text("Location access needed for route calculation.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Button("Settings") {
-                        if let url = URL(string: UIApplication.openSettingsURLString) {
-                            UIApplication.shared.open(url)
-                        }
-                    }
-                    .font(.caption.bold())
-                    .foregroundStyle(AppTheme.accent)
-                }
-                .padding(10)
-                .background(AppTheme.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
-            } else if locationService.authorizationStatus == .notDetermined {
-                Button {
-                    locationService.requestWhenInUseAuthorization()
-                } label: {
-                    Label("Enable Location for Routes", systemImage: "location")
-                        .font(.subheadline)
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .tint(AppTheme.accent)
-            }
-        }
-    }
+    // MARK: - Search Results
 
     private var searchResultsList: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Results")
-                .font(.subheadline.bold())
-                .foregroundStyle(.secondary)
+        VStack(spacing: 2) {
             ForEach(searchResults) { result in
                 Button {
-                    selectedDestination = result.mapItem
-                    searchResults = []
-                    calculateRoute(to: result.mapItem)
+                    selectDestination(result.mapItem)
                 } label: {
-                    HStack(spacing: 10) {
+                    HStack(spacing: 12) {
                         Image(systemName: "mappin.circle.fill")
                             .foregroundStyle(AppTheme.accent)
-                        VStack(alignment: .leading, spacing: 1) {
+                            .font(.title3)
+
+                        VStack(alignment: .leading, spacing: 2) {
                             Text(result.mapItem.name ?? "Unknown")
-                                .font(.subheadline)
+                                .font(.subheadline.bold())
                                 .foregroundStyle(.primary)
                             if let subtitle = result.mapItem.placemark.title {
                                 Text(subtitle)
@@ -235,23 +361,30 @@ struct RouteTabView: View {
                                     .lineLimit(1)
                             }
                         }
+
                         Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
+
+                        Image(systemName: "arrow.right.circle.fill")
+                            .foregroundStyle(.blue)
+                            .font(.title3)
                     }
-                    .padding(10)
-                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
                 }
             }
         }
     }
+
+    // MARK: - Destination Card
 
     private func destinationCard(_ item: MKMapItem) -> some View {
         HStack(spacing: 12) {
             Image(systemName: "flag.checkered")
                 .font(.title3)
                 .foregroundStyle(.green)
+                .frame(width: 40, height: 40)
+                .background(.green.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.name ?? "Destination")
                     .font(.subheadline.bold())
@@ -262,34 +395,37 @@ struct RouteTabView: View {
                         .lineLimit(2)
                 }
             }
+
             Spacer()
-            Button {
-                if let route = routeResult {
-                    navigationService.startNavigation(route: route, hazards: hazardsOnRoute)
+
+            if routeResult != nil {
+                Button {
+                    navigationService.startNavigation(route: routeResult!, hazards: hazardsOnRoute)
                     showNavigation = true
+                } label: {
+                    Image(systemName: "location.fill")
+                        .font(.body.bold())
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .background(.blue, in: Circle())
                 }
-            } label: {
-                Image(systemName: "location.fill")
-                    .font(.title3)
-                    .foregroundStyle(.white)
-                    .frame(width: 40, height: 40)
-                    .background(.blue, in: Circle())
             }
-            .disabled(routeResult == nil)
         }
-        .padding(14)
+        .padding(12)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
     }
 
+    // MARK: - Route Info Card
+
     private func routeInfoCard(_ route: MKRoute) -> some View {
         VStack(spacing: 12) {
-            HStack(spacing: 16) {
+            HStack(spacing: 0) {
                 VStack(spacing: 4) {
                     Image(systemName: "clock")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.blue)
                     Text(formatDuration(route.expectedTravelTime))
                         .font(.headline.bold())
-                    Text("Travel Time")
+                    Text("Time")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -299,7 +435,7 @@ struct RouteTabView: View {
 
                 VStack(spacing: 4) {
                     Image(systemName: "road.lanes")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.blue)
                     Text(formatDistance(route.distance))
                         .font(.headline.bold())
                     Text("Distance")
@@ -330,9 +466,9 @@ struct RouteTabView: View {
                     .font(.subheadline.bold())
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(.blue, in: RoundedRectangle(cornerRadius: 12))
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.blue)
 
             ShareLink(
                 item: routeSummaryText(route),
@@ -340,7 +476,7 @@ struct RouteTabView: View {
                 message: Text("Route details from Docks & Bridges")
             ) {
                 Label("Share Route", systemImage: "square.and.arrow.up")
-                    .font(.subheadline.bold())
+                    .font(.caption.bold())
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
@@ -350,17 +486,7 @@ struct RouteTabView: View {
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
     }
 
-    private func routeSummaryText(_ route: MKRoute) -> String {
-        var text = "Route: \(formatDistance(route.distance)), \(formatDuration(route.expectedTravelTime))"
-        if !hazardsOnRoute.isEmpty {
-            let blocked = hazardsOnRoute.filter { viewModel.hazardStatus($0) == .blocked }.count
-            let tight = hazardsOnRoute.filter { viewModel.hazardStatus($0) == .tight }.count
-            text += "\n\(hazardsOnRoute.count) hazards (\(blocked) blocked, \(tight) tight)"
-        }
-        text += "\nTruck: \(viewModel.truckProfile.type.label), \(String(format: "%.1fm", viewModel.truckProfile.height))"
-        text += "\n— Docks & Bridges Trucker"
-        return text
-    }
+    // MARK: - Hazards on Route
 
     private var hazardsOnRouteSection: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -377,6 +503,7 @@ struct RouteTabView: View {
                     .padding(.vertical, 3)
                     .background(Color(.tertiarySystemFill), in: Capsule())
             }
+
             ForEach(hazardsOnRoute) { hazard in
                 let status = viewModel.hazardStatus(hazard)
                 Button {
@@ -397,7 +524,9 @@ struct RouteTabView: View {
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
+
                         Spacer()
+
                         if hazard.type == .weight_limit, let limit = hazard.weightLimit {
                             Text(String(format: "%.0ft", limit))
                                 .font(.subheadline.bold())
@@ -407,11 +536,12 @@ struct RouteTabView: View {
                                 .font(.subheadline.bold())
                                 .foregroundStyle(status.color)
                         }
+
                         Image(systemName: "chevron.right")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     }
-                    .padding(8)
+                    .padding(10)
                     .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
                 }
                 .tint(.primary)
@@ -419,65 +549,131 @@ struct RouteTabView: View {
         }
     }
 
-    private func updateNearbyDocks() {
-        guard let dest = selectedDestination else {
-            cachedNearbyDocks = Array(viewModel.docks.prefix(5))
-            return
-        }
-        let destLocation = CLLocation(latitude: dest.placemark.coordinate.latitude, longitude: dest.placemark.coordinate.longitude)
-        cachedNearbyDocks = viewModel.docks.sorted {
-            let loc0 = CLLocation(latitude: $0.latitude, longitude: $0.longitude)
-            let loc1 = CLLocation(latitude: $1.latitude, longitude: $1.longitude)
-            return loc0.distance(from: destLocation) < loc1.distance(from: destLocation)
-        }.prefix(5).map { $0 }
-    }
+    // MARK: - Quick Actions (shown when no search)
 
-    private var nearbyDocksSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "shippingbox.fill")
-                    .foregroundStyle(AppTheme.accent)
-                Text("Nearby Docks")
-                    .font(.subheadline.bold())
-            }
-            ForEach(cachedNearbyDocks) { dock in
-                Button {
-                    destination = dock.address + ", " + dock.city
-                } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: dock.businessCategory.icon)
-                            .font(.caption)
+    private var quickActions: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if !viewModel.favouriteDocks.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "bookmark.fill")
                             .foregroundStyle(AppTheme.accent)
-                            .frame(width: 28, height: 28)
-                            .background(AppTheme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(dock.name)
-                                .font(.caption.bold())
-                                .foregroundStyle(.primary)
-                                .lineLimit(1)
-                            Text("\(dock.city), \(dock.state)")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                        Text("Saved Docks")
+                            .font(.subheadline.bold())
                     }
-                    .padding(8)
-                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
+
+                    ForEach(viewModel.favouriteDocks.prefix(4)) { dock in
+                        Button {
+                            destination = dock.address + ", " + dock.city
+                            performSearch()
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: dock.businessCategory.icon)
+                                    .font(.caption)
+                                    .foregroundStyle(.white)
+                                    .frame(width: 28, height: 28)
+                                    .background(AppTheme.accent, in: RoundedRectangle(cornerRadius: 7))
+
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(dock.name)
+                                        .font(.subheadline)
+                                        .lineLimit(1)
+                                    Text("\(dock.city), \(dock.state)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer()
+
+                                Image(systemName: "arrow.right.circle")
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .padding(10)
+                            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
+                        }
+                        .tint(.primary)
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Quick Search")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.secondary)
+
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], spacing: 8) {
+                    quickChip("Bridges", icon: "road.lanes", query: "Bridge")
+                    quickChip("Hotels", icon: "bed.double.fill", query: "Hotel")
+                    quickChip("Ports", icon: "ferry.fill", query: "Port")
+                    quickChip("Fuel", icon: "fuelpump.fill", query: "Fuel")
                 }
             }
         }
     }
+
+    private func quickChip(_ label: String, icon: String, query: String) -> some View {
+        Button {
+            destination = query
+            performSearch()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.accent)
+                Text(label)
+                    .font(.caption.bold())
+            }
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
+        }
+    }
+
+    // MARK: - Location Permission Banner
+
+    @ViewBuilder
+    private var locationPermissionBanner: some View {
+        if locationService.authorizationStatus == .denied || locationService.authorizationStatus == .restricted {
+            HStack(spacing: 8) {
+                Image(systemName: "location.slash.fill")
+                    .foregroundStyle(AppTheme.accent)
+                Text("Location access needed for routing.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                .font(.caption.bold())
+                .foregroundStyle(AppTheme.accent)
+            }
+            .padding(10)
+            .background(AppTheme.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+        } else if locationService.authorizationStatus == .notDetermined {
+            Button {
+                locationService.requestWhenInUseAuthorization()
+            } label: {
+                Label("Enable Location for Routes", systemImage: "location")
+                    .font(.subheadline)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .tint(AppTheme.accent)
+        }
+    }
+
+    // MARK: - Error Banner
 
     private func errorBanner(message: String, icon: String) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
                 .foregroundStyle(.red)
             Text(message)
-                .font(.subheadline)
+                .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
         }
@@ -485,10 +681,41 @@ struct RouteTabView: View {
         .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
     }
 
+    // MARK: - Actions
+
+    private func clearAll() {
+        destination = ""
+        searchResults = []
+        selectedDestination = nil
+        routeResult = nil
+        hazardsOnRoute = []
+        searchError = nil
+        routeError = nil
+        viewModel.clearRoute()
+        sheetDetent = .fraction(0.12)
+    }
+
+    private func selectDestination(_ item: MKMapItem) {
+        selectedDestination = item
+        searchResults = []
+
+        let coord = item.placemark.coordinate
+        withAnimation(.easeInOut(duration: 0.5)) {
+            position = .region(MKCoordinateRegion(
+                center: coord,
+                span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
+            ))
+        }
+
+        calculateRoute(to: item)
+    }
+
     private func performSearch() {
         guard !destination.isEmpty else { return }
         isSearching = true
         searchError = nil
+        sheetDetent = .fraction(0.4)
+
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = destination
         let searchCenter = locationService.userLocation?.coordinate ?? CLLocationCoordinate2D(latitude: -28.0, longitude: 134.0)
@@ -517,8 +744,8 @@ struct RouteTabView: View {
         let status = locationService.authorizationStatus
         guard status == .authorizedWhenInUse || status == .authorizedAlways else {
             routeError = status == .denied || status == .restricted
-                ? "Location access is denied. Enable it in Settings > Privacy > Location Services to calculate routes."
-                : "Location permission is needed to calculate a route from your current position."
+                ? "Location access is denied. Enable it in Settings to calculate routes."
+                : "Location permission is needed to calculate a route."
             if status == .notDetermined {
                 locationService.requestWhenInUseAuthorization()
             }
@@ -552,6 +779,10 @@ struct RouteTabView: View {
                 findHazardsNearRoute()
                 if let route = routeResult {
                     viewModel.setRoute(route, hazards: hazardsOnRoute)
+                    withAnimation(.easeInOut(duration: 0.6)) {
+                        position = .rect(route.polyline.boundingMapRect.insetBy(dx: -route.polyline.boundingMapRect.width * 0.2, dy: -route.polyline.boundingMapRect.height * 0.2))
+                    }
+                    sheetDetent = .fraction(0.4)
                 }
             } catch {
                 isCalculating = false
@@ -566,19 +797,18 @@ struct RouteTabView: View {
         guard let route = routeResult else {
             guard let dest = selectedDestination else { return }
             let destCoord = dest.placemark.coordinate
-            let destLat = destCoord.latitude
-            let destLon = destCoord.longitude
             let thresholdDeg = 50_000.0 / 111_000.0
             hazardsOnRoute = viewModel.hazards.filter { hazard in
-                let dLat = abs(hazard.latitude - destLat)
-                let dLon = abs(hazard.longitude - destLon)
+                let dLat = abs(hazard.latitude - destCoord.latitude)
+                let dLon = abs(hazard.longitude - destCoord.longitude)
                 guard dLat < thresholdDeg, dLon < thresholdDeg else { return false }
                 let hazardLoc = CLLocation(latitude: hazard.latitude, longitude: hazard.longitude)
-                let destLoc = CLLocation(latitude: destLat, longitude: destLon)
+                let destLoc = CLLocation(latitude: destCoord.latitude, longitude: destCoord.longitude)
                 return hazardLoc.distance(from: destLoc) < 50_000
             }.sorted { viewModel.hazardStatus($0).sortOrder < viewModel.hazardStatus($1).sortOrder }
             return
         }
+
         let polyline = route.polyline
         let pointCount = polyline.pointCount
         let points = polyline.points()
@@ -607,6 +837,18 @@ struct RouteTabView: View {
             }
             return false
         }.sorted { viewModel.hazardStatus($0).sortOrder < viewModel.hazardStatus($1).sortOrder }
+    }
+
+    private func routeSummaryText(_ route: MKRoute) -> String {
+        var text = "Route: \(formatDistance(route.distance)), \(formatDuration(route.expectedTravelTime))"
+        if !hazardsOnRoute.isEmpty {
+            let blocked = hazardsOnRoute.filter { viewModel.hazardStatus($0) == .blocked }.count
+            let tight = hazardsOnRoute.filter { viewModel.hazardStatus($0) == .tight }.count
+            text += "\n\(hazardsOnRoute.count) hazards (\(blocked) blocked, \(tight) tight)"
+        }
+        text += "\nTruck: \(viewModel.truckProfile.type.label), \(String(format: "%.1fm", viewModel.truckProfile.height))"
+        text += "\n— Docks & Bridges Trucker"
+        return text
     }
 
     private func formatDuration(_ seconds: TimeInterval) -> String {
