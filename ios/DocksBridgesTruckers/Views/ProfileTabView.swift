@@ -19,6 +19,8 @@ struct ProfileTabView: View {
     @State private var showEmailUnavailable: Bool = false
     @State private var selectedTruckType: TruckType?
     @State private var isLoadingProfile: Bool = false
+    @State private var showShareSheet: Bool = false
+    @State private var pdfData: Data?
 
     var body: some View {
         NavigationStack {
@@ -27,6 +29,7 @@ struct ProfileTabView: View {
                     heroSection
                     truckFormSection
                     notificationSection
+                    exportPDFSection
                     quickActionsSection
                     cacheInfoSection
                     settingsSection
@@ -229,6 +232,54 @@ struct ProfileTabView: View {
                 }
             }
         }
+    }
+
+    private var exportPDFSection: some View {
+        Button {
+            generatePDF()
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "doc.richtext")
+                    .font(.title3)
+                    .foregroundStyle(AppTheme.accent)
+                    .frame(width: 40, height: 40)
+                    .background(AppTheme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Export PDF Report")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.primary)
+                    Text("Truck profile, hazards & docks summary")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "square.and.arrow.up")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(12)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+        }
+        .sheet(isPresented: $showShareSheet) {
+            if let pdfData {
+                ShareSheet(items: [pdfData])
+            }
+        }
+    }
+
+    private func generatePDF() {
+        let vm = viewModel
+        let data = PDFExportService.generateReport(
+            truckProfile: vm.truckProfile,
+            hazards: vm.hazards,
+            docks: vm.docks,
+            hazardStatusProvider: { vm.hazardStatus($0) }
+        )
+        pdfData = data
+        showShareSheet = true
     }
 
     private var quickActionsSection: some View {
