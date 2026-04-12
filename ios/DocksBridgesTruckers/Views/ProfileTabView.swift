@@ -22,6 +22,8 @@ struct ProfileTabView: View {
     @State private var isLoadingProfile: Bool = false
     @State private var showShareSheet: Bool = false
     @State private var pdfData: Data?
+    @State private var showOnboardingConfirmation: Bool = false
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding: Bool = true
 
     var body: some View {
         NavigationStack {
@@ -425,6 +427,12 @@ struct ProfileTabView: View {
                 settingsRow(icon: "arrow.counterclockwise", iconColor: AppTheme.accent, title: "Reset to Defaults", subtitle: "Resets truck profile to Semi-Trailer defaults")
             }
 
+            Button {
+                showOnboardingConfirmation = true
+            } label: {
+                settingsRow(icon: "book.fill", iconColor: .purple, title: "Replay Onboarding", subtitle: "View the app introduction again")
+            }
+
             NavigationLink {
                 PrivacyPolicyView()
             } label: {
@@ -440,6 +448,14 @@ struct ProfileTabView: View {
                 Button("Cancel", role: .cancel) { }
             } message: {
                 Text("This will reset your truck profile to Semi-Trailer defaults. This cannot be undone.")
+            }
+            .confirmationDialog("Replay Onboarding?", isPresented: $showOnboardingConfirmation, titleVisibility: .visible) {
+                Button("Replay") {
+                    hasCompletedOnboarding = false
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This will show the onboarding screens again.")
             }
         }
     }

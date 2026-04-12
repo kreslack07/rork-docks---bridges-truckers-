@@ -13,6 +13,7 @@ struct NavigationMapView: View {
     @State private var alertedHazard: Hazard?
     @State private var isCameraLocked: Bool = true
     @State private var speedKmh: Double = 0
+    @State private var isProgrammaticCameraMove: Bool = false
 
     private let hazardAlertThreshold: CLLocationDistance = 2000
 
@@ -58,6 +59,7 @@ struct NavigationMapView: View {
         }
         .onAppear {
             locationService.startNavigationMode()
+            isCameraLocked = true
         }
         .onDisappear {
             locationService.stopNavigationMode()
@@ -69,7 +71,7 @@ struct NavigationMapView: View {
     }
 
     private var mapLayer: some View {
-        Map(position: $position) {
+        Map(position: $position, interactionModes: .all) {
             if let route = navigationService.currentRoute {
                 MapPolyline(route.polyline)
                     .stroke(.blue, lineWidth: 7)
@@ -113,6 +115,11 @@ struct NavigationMapView: View {
         }
         .mapStyle(.standard(pointsOfInterest: .excludingAll))
         .mapControls {}
+        .onMapCameraChange(frequency: .continuous) { _ in
+            if !isProgrammaticCameraMove && isCameraLocked {
+                isCameraLocked = false
+            }
+        }
     }
 
     private var directionBanner: some View {
@@ -293,6 +300,7 @@ struct NavigationMapView: View {
 
                 Button {
                     isCameraLocked = true
+                    isProgrammaticCameraMove = true
                     if let loc = locationService.userLocation {
                         updateCamera(for: loc)
                     }
@@ -459,6 +467,7 @@ struct NavigationMapView: View {
             distance = 1400
         }
         let animDuration = speed < 5 ? 1.5 : 1.0
+        isProgrammaticCameraMove = true
         withAnimation(.easeInOut(duration: animDuration)) {
             position = .camera(MapCamera(
                 centerCoordinate: location.coordinate,
@@ -466,6 +475,10 @@ struct NavigationMapView: View {
                 heading: heading,
                 pitch: 55
             ))
+        }
+        Task {
+            try? await Task.sleep(for: .seconds(animDuration + 0.2))
+            isProgrammaticCameraMove = false
         }
     }
 }

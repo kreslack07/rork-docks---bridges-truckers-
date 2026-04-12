@@ -196,12 +196,36 @@ final class AppViewModel {
             if truckProfile.weight > limit { status = .blocked }
             else if truckProfile.weight > limit * 0.9 { status = .tight }
             else { status = .safe }
-        } else if truckProfile.height > hazard.clearanceHeight {
-            status = .blocked
-        } else if truckProfile.height > hazard.clearanceHeight - 0.3 {
-            status = .tight
         } else {
-            status = .safe
+            let heightStatus: HazardStatus
+            if truckProfile.height > hazard.clearanceHeight {
+                heightStatus = .blocked
+            } else if truckProfile.height > hazard.clearanceHeight - 0.3 {
+                heightStatus = .tight
+            } else {
+                heightStatus = .safe
+            }
+
+            let widthStatus: HazardStatus
+            if let widthLimit = hazard.widthLimit {
+                if truckProfile.width > widthLimit {
+                    widthStatus = .blocked
+                } else if truckProfile.width > widthLimit - 0.3 {
+                    widthStatus = .tight
+                } else {
+                    widthStatus = .safe
+                }
+            } else {
+                widthStatus = .safe
+            }
+
+            if heightStatus == .blocked || widthStatus == .blocked {
+                status = .blocked
+            } else if heightStatus == .tight || widthStatus == .tight {
+                status = .tight
+            } else {
+                status = .safe
+            }
         }
         statusCache[hazard.id] = status
         return status
@@ -216,8 +240,10 @@ final class AppViewModel {
 
     func refreshData() async {
         try? await Task.sleep(for: .milliseconds(300))
-        hazards = MockData.hazards
-        docks = MockData.docks
+        let cachedHazards = CacheService.loadHazards()
+        let cachedDocks = CacheService.loadDocks()
+        hazards = cachedHazards ?? MockData.hazards
+        docks = cachedDocks ?? MockData.docks
         lastDataRefresh = Date()
     }
 

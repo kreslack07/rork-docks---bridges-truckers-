@@ -308,8 +308,11 @@ struct RouteTabView: View {
                 }
 
                 if !destination.isEmpty && !searchCompleter.results.isEmpty && selectedDestination == nil && searchResults.isEmpty {
-                    autocompleteList
-                        .padding(.top, 8)
+                    RouteAutocompleteListView(
+                        completions: searchCompleter.results,
+                        onSelect: { selectCompletion($0) }
+                    )
+                    .padding(.top, 8)
                 }
 
                 if !searchResults.isEmpty && selectedDestination == nil {
@@ -334,15 +337,27 @@ struct RouteTabView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 20)
                 } else if let route = routeResult {
-                    routeInfoCard(route)
-                        .padding(.horizontal, 16)
-                        .padding(.top, 12)
+                    RouteInfoCardView(
+                        route: route,
+                        hazardCount: hazardsOnRoute.count,
+                        onStartNavigation: {
+                            navigationService.startNavigation(route: route, hazards: hazardsOnRoute)
+                            showNavigation = true
+                        },
+                        routeSummaryText: routeSummaryText(route)
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
                 }
 
                 if !hazardsOnRoute.isEmpty {
-                    hazardsOnRouteSection
-                        .padding(.horizontal, 16)
-                        .padding(.top, 16)
+                    RouteHazardListView(
+                        hazards: hazardsOnRoute,
+                        statusProvider: { viewModel.hazardStatus($0) },
+                        onSelect: { selectedHazard = $0 }
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
                 }
 
                 if selectedDestination == nil && searchResults.isEmpty && routeResult == nil && !isSearching && destination.isEmpty {
@@ -1264,18 +1279,3 @@ struct RouteTabView: View {
     }
 }
 
-// MARK: - Nearby Place Annotation
-
-struct NearbyPlaceAnnotationView: View {
-    let place: NearbyPlace
-
-    var body: some View {
-        Image(systemName: place.category.icon)
-            .font(.caption.bold())
-            .foregroundStyle(.white)
-            .frame(width: 28, height: 28)
-            .background(place.category.color, in: Circle())
-            .overlay(Circle().stroke(.white, lineWidth: 1.5))
-            .shadow(color: .black.opacity(0.2), radius: 3, y: 1)
-    }
-}
