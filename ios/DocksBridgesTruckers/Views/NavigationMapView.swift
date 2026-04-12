@@ -16,6 +16,12 @@ struct NavigationMapView: View {
     @State private var isProgrammaticCameraMove: Bool = false
 
     private let hazardAlertThreshold: CLLocationDistance = 2000
+    private static let arrivalFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        return formatter
+    }()
+    @State private var cameraMoveTaskID: UUID?
 
     var body: some View {
         ZStack {
@@ -118,8 +124,10 @@ struct NavigationMapView: View {
         .mapStyle(.standard(pointsOfInterest: .excludingAll))
         .mapControls {}
         .onMapCameraChange(frequency: .continuous) { _ in
-            if !isProgrammaticCameraMove && isCameraLocked {
+            if isProgrammaticCameraMove { return }
+            if isCameraLocked {
                 isCameraLocked = false
+                cameraMoveTaskID = nil
             }
         }
     }
@@ -342,9 +350,7 @@ struct NavigationMapView: View {
 
     private var arrivalTime: String? {
         let arrival = Date().addingTimeInterval(navigationService.estimatedTimeRemaining)
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        return formatter.string(from: arrival)
+        return Self.arrivalFormatter.string(from: arrival)
     }
 
     private var arrivedOverlay: some View {
@@ -470,6 +476,8 @@ struct NavigationMapView: View {
         }
         let animDuration = speed < 5 ? 1.5 : 1.0
         isProgrammaticCameraMove = true
+        let moveID = UUID()
+        cameraMoveTaskID = moveID
         withAnimation(.easeInOut(duration: animDuration)) {
             position = .camera(MapCamera(
                 centerCoordinate: location.coordinate,
@@ -480,7 +488,9 @@ struct NavigationMapView: View {
         }
         Task {
             try? await Task.sleep(for: .seconds(animDuration + 0.2))
-            isProgrammaticCameraMove = false
+            if cameraMoveTaskID == moveID {
+                isProgrammaticCameraMove = false
+            }
         }
     }
 }

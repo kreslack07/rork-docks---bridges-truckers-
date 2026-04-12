@@ -118,11 +118,11 @@ struct FavouritesTabView: View {
                         in: Capsule()
                     )
                 }
-                .sensoryFeedback(.selection, trigger: filterMode)
             }
             Spacer()
         }
         .padding(.top, 4)
+        .sensoryFeedback(.selection, trigger: filterMode)
     }
 
     private var docksSection: some View {

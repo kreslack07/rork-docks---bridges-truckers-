@@ -243,12 +243,27 @@ final class AppViewModel {
     }
 
     func refreshData() async {
-        try? await Task.sleep(for: .milliseconds(300))
-        let cachedHazards = CacheService.loadHazards()
-        let cachedDocks = CacheService.loadDocks()
-        hazards = cachedHazards ?? MockData.hazards
-        docks = cachedDocks ?? MockData.docks
+        try? await Task.sleep(for: .milliseconds(800))
+        var refreshedHazards = MockData.hazards
+        var refreshedDocks = MockData.docks
+
+        if let cachedHazards = CacheService.loadHazards(), !cachedHazards.isEmpty {
+            let cachedIDs = Set(cachedHazards.map(\.id))
+            let newFromMock = MockData.hazards.filter { !cachedIDs.contains($0.id) }
+            refreshedHazards = cachedHazards + newFromMock
+        }
+        if let cachedDocks = CacheService.loadDocks(), !cachedDocks.isEmpty {
+            let cachedIDs = Set(cachedDocks.map(\.id))
+            let newFromMock = MockData.docks.filter { !cachedIDs.contains($0.id) }
+            refreshedDocks = cachedDocks + newFromMock
+        }
+
+        hazards = refreshedHazards
+        docks = refreshedDocks
         lastDataRefresh = Date()
+        CacheService.saveHazards(hazards)
+        CacheService.saveDocks(docks)
+        syncWidgetData()
     }
 
     func setRoute(_ route: MKRoute, hazards: [Hazard]) {
