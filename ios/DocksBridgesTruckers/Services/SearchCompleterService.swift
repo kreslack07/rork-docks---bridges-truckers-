@@ -22,6 +22,7 @@ final class SearchCompleterService: NSObject, MKLocalSearchCompleterDelegate {
         guard !query.isEmpty else {
             results = []
             isSearching = false
+            completer.queryFragment = ""
             return
         }
         isSearching = true

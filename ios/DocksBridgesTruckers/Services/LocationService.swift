@@ -6,11 +6,14 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
     var authorizationStatus: CLAuthorizationStatus = .notDetermined
     var userLocation: CLLocation?
+    var hasReceivedFirstLocation: Bool = false
+    private var isNavigationMode: Bool = false
 
     override init() {
         super.init()
         manager.delegate = self
         authorizationStatus = manager.authorizationStatus
+        manager.allowsBackgroundLocationUpdates = false
     }
 
     func requestWhenInUseAuthorization() {
@@ -19,6 +22,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     }
 
     func startUpdatingLocation() {
+        guard !isNavigationMode else { return }
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
         manager.distanceFilter = 100
         manager.startUpdatingLocation()
@@ -29,6 +33,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     }
 
     func startNavigationMode() {
+        isNavigationMode = true
         manager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
         manager.distanceFilter = 10
         manager.activityType = .automotiveNavigation
@@ -36,6 +41,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     }
 
     func stopNavigationMode() {
+        isNavigationMode = false
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
         manager.distanceFilter = 100
         manager.activityType = .other
@@ -54,8 +60,14 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
+        guard location.horizontalAccuracy >= 0, location.horizontalAccuracy < 500 else { return }
         Task { @MainActor in
             self.userLocation = location
+            if !self.hasReceivedFirstLocation {
+                self.hasReceivedFirstLocation = true
+            }
         }
     }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
 }

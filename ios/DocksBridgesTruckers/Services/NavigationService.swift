@@ -61,13 +61,17 @@ final class NavigationService {
             let step = routeSteps[currentStepIndex]
             let stepEndPoint = stepEndCoordinate(for: step)
             let stepEndLocation = CLLocation(latitude: stepEndPoint.latitude, longitude: stepEndPoint.longitude)
-            distanceToNextStep = location.distance(from: stepEndLocation)
+            let newDistance = location.distance(from: stepEndLocation)
 
-            if distanceToNextStep < 30 && currentStepIndex < routeSteps.count - 1 {
+            if newDistance < 50 && currentStepIndex < routeSteps.count - 1 {
                 currentStepIndex += 1
                 if currentStepIndex < routeSteps.count {
-                    distanceToNextStep = routeSteps[currentStepIndex].distance
+                    let nextEnd = stepEndCoordinate(for: routeSteps[currentStepIndex])
+                    let nextEndLoc = CLLocation(latitude: nextEnd.latitude, longitude: nextEnd.longitude)
+                    distanceToNextStep = location.distance(from: nextEndLoc)
                 }
+            } else {
+                distanceToNextStep = newDistance
             }
         }
 
@@ -75,7 +79,7 @@ final class NavigationService {
             let destLocation = CLLocation(latitude: dest.latitude, longitude: dest.longitude)
             totalDistanceRemaining = location.distance(from: destLocation)
 
-            let speed = max(location.speed, 10)
+            let speed = location.speed > 1 ? location.speed : 10
             estimatedTimeRemaining = totalDistanceRemaining / speed
 
             if totalDistanceRemaining < 50 {

@@ -48,7 +48,10 @@ struct NavigationMapView: View {
         .onChange(of: locationService.userLocation) { _, newLocation in
             guard let location = newLocation else { return }
             navigationService.updateLocation(location)
-            speedKmh = max(0, location.speed * 3.6)
+            let newSpeed = max(0, location.speed * 3.6)
+            if abs(newSpeed - speedKmh) > 1 {
+                speedKmh = newSpeed
+            }
             if isCameraLocked {
                 updateCamera(for: location)
             }
@@ -455,7 +458,8 @@ struct NavigationMapView: View {
         } else {
             distance = 1400
         }
-        withAnimation(.easeInOut(duration: 1.0)) {
+        let animDuration = speed < 5 ? 1.5 : 1.0
+        withAnimation(.easeInOut(duration: animDuration)) {
             position = .camera(MapCamera(
                 centerCoordinate: location.coordinate,
                 distance: distance,

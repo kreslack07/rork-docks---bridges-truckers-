@@ -30,7 +30,13 @@ final class AppViewModel {
         }
     }
     private var isInitialized: Bool = false
-    var hazardFilter: HazardFilter = .all
+    var hazardFilter: HazardFilter = .all {
+        didSet {
+            guard hazardFilter != oldValue else { return }
+            _filteredHazardsCache = nil
+            _filteredHazardsFilter = nil
+        }
+    }
     var favouriteDockIDs: Set<String> = []
     var favouriteHazardIDs: Set<String> = []
     var activeRoute: MKRoute?
@@ -43,7 +49,13 @@ final class AppViewModel {
     private(set) var blockedCount: Int = 0
     private(set) var tightCount: Int = 0
 
+    private var _filteredHazardsCache: [Hazard]?
+    private var _filteredHazardsFilter: HazardFilter?
+
     var filteredHazards: [Hazard] {
+        if let cached = _filteredHazardsCache, _filteredHazardsFilter == hazardFilter {
+            return cached
+        }
         let base: [Hazard]
         switch hazardFilter {
         case .all: base = hazards
@@ -51,7 +63,10 @@ final class AppViewModel {
         case .wire: base = hazards.filter { $0.type == .wire }
         case .weight_limit: base = hazards.filter { $0.type == .weight_limit }
         }
-        return base.sorted { hazardStatus($0).sortOrder < hazardStatus($1).sortOrder }
+        let result = base.sorted { hazardStatus($0).sortOrder < hazardStatus($1).sortOrder }
+        _filteredHazardsCache = result
+        _filteredHazardsFilter = hazardFilter
+        return result
     }
 
     var favouriteDocks: [Dock] {
@@ -71,6 +86,8 @@ final class AppViewModel {
 
     private func invalidateCaches() {
         statusCache = [:]
+        _filteredHazardsCache = nil
+        _filteredHazardsFilter = nil
         var blocked = 0
         var tight = 0
         for hazard in hazards {

@@ -41,6 +41,8 @@ struct RouteTabView: View {
     @State private var showNearbyPlaces: Bool = false
     @State private var selectedNearbyPlace: NearbyPlace?
     @State private var isTyping: Bool = false
+    @State private var searchTask: Task<Void, Never>?
+    @State private var hasCenteredOnUser: Bool = false
 
     private var nonRouteHazards: [Hazard] {
         let routeIDs = Set(viewModel.activeRouteHazards.map(\.id))
@@ -106,8 +108,19 @@ struct RouteTabView: View {
                     center: loc.coordinate,
                     span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5)
                 ))
+                hasCenteredOnUser = true
             }
             searchCompleter.updateSearchRegion(currentRegion)
+        }
+        .onChange(of: locationService.hasReceivedFirstLocation) { _, received in
+            guard received, !hasCenteredOnUser, let loc = locationService.userLocation else { return }
+            hasCenteredOnUser = true
+            withAnimation(.easeInOut(duration: 0.6)) {
+                position = .region(MKCoordinateRegion(
+                    center: loc.coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5)
+                ))
+            }
         }
         .onChange(of: destination) { _, newValue in
             if isTyping {
@@ -1037,6 +1050,8 @@ struct RouteTabView: View {
     // MARK: - Actions
 
     private func clearAll() {
+        searchTask?.cancel()
+        searchTask = nil
         destination = ""
         searchResults = []
         selectedDestination = nil
@@ -1044,6 +1059,8 @@ struct RouteTabView: View {
         hazardsOnRoute = []
         searchError = nil
         routeError = nil
+        isSearching = false
+        isCalculating = false
         selectedNearbyPlace = nil
         nearbyPlaces.clear()
         showNearbyPlaces = false
@@ -1071,6 +1088,7 @@ struct RouteTabView: View {
 
     private func performSearch() {
         guard !destination.isEmpty else { return }
+        searchTask?.cancel()
         isSearching = true
         searchError = nil
         searchCompleter.clear()
@@ -1084,15 +1102,17 @@ struct RouteTabView: View {
             span: MKCoordinateSpan(latitudeDelta: 40, longitudeDelta: 40)
         )
         let search = MKLocalSearch(request: request)
-        Task {
+        searchTask = Task {
             do {
                 let response = try await search.start()
+                guard !Task.isCancelled else { return }
                 isSearching = false
                 searchResults = response.mapItems.map { IdentifiableMapItem(mapItem: $0) }
                 if searchResults.isEmpty {
                     searchError = "No results found. Try a different search term."
                 }
             } catch {
+                guard !Task.isCancelled else { return }
                 isSearching = false
                 searchResults = []
                 searchError = "Search failed. Check your connection and try again."
