@@ -6,6 +6,8 @@ struct ContentView: View {
     @State private var notificationService = NotificationService()
     @State private var networkMonitor = NetworkMonitor()
     @State private var navigationService = NavigationService()
+    @State private var searchCompleter = SearchCompleterService()
+    @State private var nearbyPlaces = NearbyPlacesService()
     @State private var selectedTab: AppTab = .route
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding: Bool = false
     @State private var showSplash: Bool = true
@@ -58,6 +60,8 @@ struct ContentView: View {
             .environment(notificationService)
             .environment(networkMonitor)
             .environment(navigationService)
+            .environment(searchCompleter)
+            .environment(nearbyPlaces)
             .onAppear {
                 viewModel.notificationService = notificationService
             }

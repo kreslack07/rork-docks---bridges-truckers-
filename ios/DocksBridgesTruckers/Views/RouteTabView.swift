@@ -17,6 +17,8 @@ struct RouteTabView: View {
     @Environment(AppViewModel.self) private var viewModel
     @Environment(LocationService.self) private var locationService
     @Environment(NavigationService.self) private var navigationService
+    @Environment(SearchCompleterService.self) private var searchCompleter
+    @Environment(NearbyPlacesService.self) private var nearbyPlaces
 
     @State private var position: MapCameraPosition = .region(MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: -28.0, longitude: 134.0),
@@ -36,10 +38,18 @@ struct RouteTabView: View {
     @State private var showNavigation: Bool = false
     @State private var sheetDetent: PresentationDetent = .fraction(0.12)
     @State private var showFilterMenu: Bool = false
+    @State private var showNearbyPlaces: Bool = false
+    @State private var selectedNearbyPlace: NearbyPlace?
+    @State private var isTyping: Bool = false
 
     private var nonRouteHazards: [Hazard] {
         let routeIDs = Set(viewModel.activeRouteHazards.map(\.id))
         return viewModel.filteredHazards.filter { !routeIDs.contains($0.id) }
+    }
+
+    private var currentRegion: MKCoordinateRegion {
+        let center = locationService.userLocation?.coordinate ?? CLLocationCoordinate2D(latitude: -28.0, longitude: 134.0)
+        return MKCoordinateRegion(center: center, span: MKCoordinateSpan(latitudeDelta: 2, longitudeDelta: 2))
     }
 
     var body: some View {
@@ -97,6 +107,16 @@ struct RouteTabView: View {
                     span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5)
                 ))
             }
+            searchCompleter.updateSearchRegion(currentRegion)
+        }
+        .onChange(of: destination) { _, newValue in
+            if isTyping {
+                searchCompleter.updateSearchRegion(currentRegion)
+                searchCompleter.search(newValue)
+                if !newValue.isEmpty && selectedDestination == nil {
+                    sheetDetent = .fraction(0.4)
+                }
+            }
         }
         .sensoryFeedback(.selection, trigger: selectedDestination?.name)
     }
@@ -146,6 +166,16 @@ struct RouteTabView: View {
                         .foregroundStyle(.green)
                         .background(.white, in: Circle())
                         .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+                }
+            }
+
+            ForEach(nearbyPlaces.places) { place in
+                Annotation(place.name, coordinate: place.coordinate) {
+                    Button {
+                        selectedNearbyPlace = place
+                    } label: {
+                        NearbyPlaceAnnotationView(place: place)
+                    }
                 }
             }
 
@@ -263,6 +293,11 @@ struct RouteTabView: View {
                         .padding(.top, 10)
                 }
 
+                if !destination.isEmpty && !searchCompleter.results.isEmpty && selectedDestination == nil && searchResults.isEmpty {
+                    autocompleteList
+                        .padding(.top, 8)
+                }
+
                 if !searchResults.isEmpty && selectedDestination == nil {
                     searchResultsList
                         .padding(.top, 12)
@@ -270,6 +305,12 @@ struct RouteTabView: View {
 
                 if let selected = selectedDestination {
                     destinationCard(selected)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                }
+
+                if let place = selectedNearbyPlace {
+                    nearbyPlaceCard(place)
                         .padding(.horizontal, 16)
                         .padding(.top, 12)
                 }
@@ -290,7 +331,11 @@ struct RouteTabView: View {
                         .padding(.top, 16)
                 }
 
-                if selectedDestination == nil && searchResults.isEmpty && routeResult == nil && !isSearching {
+                if selectedDestination == nil && searchResults.isEmpty && routeResult == nil && !isSearching && destination.isEmpty {
+                    nearbyDiscoverySection
+                        .padding(.horizontal, 16)
+                        .padding(.top, 16)
+
                     quickActions
                         .padding(.horizontal, 16)
                         .padding(.top, 16)
@@ -314,12 +359,21 @@ struct RouteTabView: View {
                 .foregroundStyle(.secondary)
                 .font(.body)
 
-            TextField("Where to?", text: $destination)
-                .font(.body)
-                .textContentType(.fullStreetAddress)
-                .onSubmit { performSearch() }
+            TextField("Where to?", text: $destination, onEditingChanged: { editing in
+                isTyping = editing
+                if editing && !destination.isEmpty {
+                    sheetDetent = .fraction(0.4)
+                }
+            })
+            .font(.body)
+            .textContentType(.fullStreetAddress)
+            .onSubmit {
+                isTyping = false
+                searchCompleter.clear()
+                performSearch()
+            }
 
-            if isSearching {
+            if isSearching || searchCompleter.isSearching {
                 ProgressView()
                     .scaleEffect(0.8)
             }
@@ -335,6 +389,95 @@ struct RouteTabView: View {
         }
         .padding(14)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    // MARK: - Autocomplete List
+
+    private var autocompleteList: some View {
+        VStack(spacing: 0) {
+            ForEach(searchCompleter.results.prefix(8), id: \.self) { completion in
+                Button {
+                    selectCompletion(completion)
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: completionIcon(for: completion))
+                            .foregroundStyle(AppTheme.accent)
+                            .font(.body)
+                            .frame(width: 32, height: 32)
+                            .background(AppTheme.accent.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            highlightedText(completion.title, ranges: completion.titleHighlightRanges)
+                                .font(.subheadline)
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                            if !completion.subtitle.isEmpty {
+                                highlightedText(completion.subtitle, ranges: completion.subtitleHighlightRanges)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "arrow.up.left")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                }
+            }
+        }
+    }
+
+    private func highlightedText(_ text: String, ranges: [NSValue]) -> Text {
+        guard !ranges.isEmpty else { return Text(text) }
+        var result = Text("")
+        let nsString = text as NSString
+        var lastEnd = 0
+        let sortedRanges = ranges.compactMap { $0.rangeValue }.sorted { $0.location < $1.location }
+        for range in sortedRanges {
+            if range.location > lastEnd {
+                let prefix = nsString.substring(with: NSRange(location: lastEnd, length: range.location - lastEnd))
+                result = result + Text(prefix)
+            }
+            let highlighted = nsString.substring(with: range)
+            result = result + Text(highlighted).bold()
+            lastEnd = range.location + range.length
+        }
+        if lastEnd < nsString.length {
+            let suffix = nsString.substring(from: lastEnd)
+            result = result + Text(suffix)
+        }
+        return result
+    }
+
+    private func completionIcon(for completion: MKLocalSearchCompletion) -> String {
+        let title = completion.title.lowercased()
+        if title.contains("fuel") || title.contains("petrol") || title.contains("gas") { return "fuelpump.fill" }
+        if title.contains("hotel") || title.contains("motel") { return "bed.double.fill" }
+        if title.contains("hospital") { return "cross.fill" }
+        if title.contains("port") || title.contains("terminal") { return "ferry.fill" }
+        if title.contains("warehouse") { return "shippingbox.fill" }
+        if title.contains("park") { return "p.circle.fill" }
+        if title.contains("rest") { return "cup.and.saucer.fill" }
+        return "mappin.circle.fill"
+    }
+
+    private func selectCompletion(_ completion: MKLocalSearchCompletion) {
+        isTyping = false
+        destination = completion.title
+        searchCompleter.clear()
+        sheetDetent = .fraction(0.4)
+        Task {
+            if let mapItem = await searchCompleter.resolveCompletion(completion) {
+                selectDestination(mapItem)
+            } else {
+                performSearch()
+            }
+        }
     }
 
     // MARK: - Search Results
@@ -409,6 +552,59 @@ struct RouteTabView: View {
                         .frame(width: 44, height: 44)
                         .background(.blue, in: Circle())
                 }
+            }
+        }
+        .padding(12)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    // MARK: - Nearby Place Card
+
+    private func nearbyPlaceCard(_ place: NearbyPlace) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: place.category.icon)
+                .font(.title3)
+                .foregroundStyle(place.category.color)
+                .frame(width: 40, height: 40)
+                .background(place.category.color.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(place.name)
+                    .font(.subheadline.bold())
+                if let address = place.address {
+                    Text(address)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                if let dist = place.distance {
+                    Text(formatDistance(dist))
+                        .font(.caption2.bold())
+                        .foregroundStyle(place.category.color)
+                }
+            }
+
+            Spacer()
+
+            Button {
+                navigateToNearbyPlace(place)
+            } label: {
+                Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
+                    .font(.body.bold())
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(.blue, in: Circle())
+            }
+
+            Button {
+                selectedNearbyPlace = nil
+                nearbyPlaces.clear()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+                    .frame(width: 30, height: 30)
+                    .background(Color(.tertiarySystemFill), in: Circle())
             }
         }
         .padding(12)
@@ -549,7 +745,119 @@ struct RouteTabView: View {
         }
     }
 
-    // MARK: - Quick Actions (shown when no search)
+    // MARK: - Nearby Discovery
+
+    private var nearbyDiscoverySection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "location.magnifyingglass")
+                    .foregroundStyle(AppTheme.accent)
+                Text("Find Nearby")
+                    .font(.subheadline.bold())
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(NearbyCategory.allCases, id: \.self) { category in
+                        Button {
+                            searchNearbyCategory(category)
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: category.icon)
+                                    .font(.caption)
+                                    .foregroundStyle(nearbyPlaces.selectedCategory == category && showNearbyPlaces ? .white : category.color)
+                                Text(category.label)
+                                    .font(.caption.bold())
+                                    .foregroundStyle(nearbyPlaces.selectedCategory == category && showNearbyPlaces ? .white : .primary)
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(
+                                nearbyPlaces.selectedCategory == category && showNearbyPlaces
+                                    ? AnyShapeStyle(category.color)
+                                    : AnyShapeStyle(Color(.secondarySystemGroupedBackground)),
+                                in: Capsule()
+                            )
+                        }
+                    }
+                }
+                .padding(.horizontal, 1)
+            }
+            .contentMargins(.horizontal, 0)
+
+            if nearbyPlaces.isLoading {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                        .padding(.vertical, 8)
+                    Spacer()
+                }
+            }
+
+            if let error = nearbyPlaces.errorMessage {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.circle")
+                        .foregroundStyle(.secondary)
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if showNearbyPlaces && !nearbyPlaces.places.isEmpty {
+                VStack(spacing: 6) {
+                    ForEach(nearbyPlaces.places.prefix(6)) { place in
+                        Button {
+                            selectedNearbyPlace = place
+                            withAnimation(.easeInOut(duration: 0.5)) {
+                                position = .region(MKCoordinateRegion(
+                                    center: place.coordinate,
+                                    span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                                ))
+                            }
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: place.category.icon)
+                                    .font(.caption)
+                                    .foregroundStyle(.white)
+                                    .frame(width: 28, height: 28)
+                                    .background(place.category.color, in: RoundedRectangle(cornerRadius: 7))
+
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(place.name)
+                                        .font(.subheadline)
+                                        .lineLimit(1)
+                                    if let address = place.address {
+                                        Text(address)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
+                                }
+
+                                Spacer()
+
+                                if let dist = place.distance {
+                                    Text(formatDistance(dist))
+                                        .font(.caption.bold())
+                                        .foregroundStyle(place.category.color)
+                                }
+
+                                Image(systemName: "chevron.right")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .padding(10)
+                            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
+                        }
+                        .tint(.primary)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Quick Actions
 
     private var quickActions: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -565,6 +873,7 @@ struct RouteTabView: View {
                     ForEach(viewModel.favouriteDocks.prefix(4)) { dock in
                         Button {
                             destination = dock.address + ", " + dock.city
+                            isTyping = false
                             performSearch()
                         } label: {
                             HStack(spacing: 10) {
@@ -614,6 +923,7 @@ struct RouteTabView: View {
     private func quickChip(_ label: String, icon: String, query: String) -> some View {
         Button {
             destination = query
+            isTyping = false
             performSearch()
         } label: {
             HStack(spacing: 6) {
@@ -691,13 +1001,19 @@ struct RouteTabView: View {
         hazardsOnRoute = []
         searchError = nil
         routeError = nil
+        selectedNearbyPlace = nil
+        nearbyPlaces.clear()
+        showNearbyPlaces = false
+        searchCompleter.clear()
         viewModel.clearRoute()
         sheetDetent = .fraction(0.12)
     }
 
     private func selectDestination(_ item: MKMapItem) {
         selectedDestination = item
+        selectedNearbyPlace = nil
         searchResults = []
+        searchCompleter.clear()
 
         let coord = item.placemark.coordinate
         withAnimation(.easeInOut(duration: 0.5)) {
@@ -714,6 +1030,7 @@ struct RouteTabView: View {
         guard !destination.isEmpty else { return }
         isSearching = true
         searchError = nil
+        searchCompleter.clear()
         sheetDetent = .fraction(0.4)
 
         let request = MKLocalSearch.Request()
@@ -738,6 +1055,25 @@ struct RouteTabView: View {
                 searchError = "Search failed. Check your connection and try again."
             }
         }
+    }
+
+    private func searchNearbyCategory(_ category: NearbyCategory) {
+        showNearbyPlaces = true
+        sheetDetent = .fraction(0.4)
+        Task {
+            await nearbyPlaces.searchNearby(
+                category: category,
+                region: currentRegion,
+                userLocation: locationService.userLocation
+            )
+        }
+    }
+
+    private func navigateToNearbyPlace(_ place: NearbyPlace) {
+        let placemark = MKPlacemark(coordinate: place.coordinate)
+        let mapItem = MKMapItem(placemark: placemark)
+        mapItem.name = place.name
+        selectDestination(mapItem)
     }
 
     private func calculateRoute(to item: MKMapItem) {
@@ -862,5 +1198,21 @@ struct RouteTabView: View {
         let km = meters / 1000
         if km >= 100 { return String(format: "%.0f km", km) }
         return String(format: "%.1f km", km)
+    }
+}
+
+// MARK: - Nearby Place Annotation
+
+struct NearbyPlaceAnnotationView: View {
+    let place: NearbyPlace
+
+    var body: some View {
+        Image(systemName: place.category.icon)
+            .font(.caption.bold())
+            .foregroundStyle(.white)
+            .frame(width: 28, height: 28)
+            .background(place.category.color, in: Circle())
+            .overlay(Circle().stroke(.white, lineWidth: 1.5))
+            .shadow(color: .black.opacity(0.2), radius: 3, y: 1)
     }
 }
