@@ -82,6 +82,82 @@ struct HazardDetailSheet: View {
                     }
                 }
 
+                if let widthLimit = hazard.widthLimit {
+                    let widthStatus = widthStatusFor(widthLimit)
+                    HStack(spacing: 12) {
+                        Image(systemName: "arrow.left.and.right")
+                            .font(.caption.bold())
+                            .foregroundStyle(widthStatus.color)
+                            .frame(width: 28, height: 28)
+                            .background(widthStatus.color.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Width Restriction")
+                                .font(.caption.bold())
+                            Text("Limit: \(String(format: "%.1fm", widthLimit)) · Your width: \(String(format: "%.1fm", viewModel.truckProfile.width))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        HStack(spacing: 3) {
+                            Image(systemName: widthStatus.icon)
+                                .font(.system(size: 8))
+                            Text(widthStatus.label)
+                                .font(.system(size: 9, weight: .heavy))
+                        }
+                        .foregroundStyle(widthStatus.color)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(widthStatus.color.opacity(0.12), in: Capsule())
+                    }
+                    .padding(10)
+                    .background(widthStatus.color.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(widthStatus.color.opacity(0.15), lineWidth: 1)
+                    )
+                }
+
+                if let weightLimit = hazard.weightLimit, hazard.type != .weight_limit {
+                    let weightStatus = weightStatusFor(weightLimit)
+                    HStack(spacing: 12) {
+                        Image(systemName: "scalemass.fill")
+                            .font(.caption.bold())
+                            .foregroundStyle(weightStatus.color)
+                            .frame(width: 28, height: 28)
+                            .background(weightStatus.color.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Weight Restriction")
+                                .font(.caption.bold())
+                            Text("Limit: \(String(format: "%.0ft", weightLimit)) · Your weight: \(String(format: "%.1ft", viewModel.truckProfile.weight))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        HStack(spacing: 3) {
+                            Image(systemName: weightStatus.icon)
+                                .font(.system(size: 8))
+                            Text(weightStatus.label)
+                                .font(.system(size: 9, weight: .heavy))
+                        }
+                        .foregroundStyle(weightStatus.color)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(weightStatus.color.opacity(0.12), in: Capsule())
+                    }
+                    .padding(10)
+                    .background(weightStatus.color.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(weightStatus.color.opacity(0.15), lineWidth: 1)
+                    )
+                }
+
                 VStack(alignment: .leading, spacing: 8) {
                     Label(hazard.road, systemImage: "road.lanes")
                     Label("\(hazard.city), \(hazard.state)", systemImage: "mappin")
@@ -144,6 +220,18 @@ struct HazardDetailSheet: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 10)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func widthStatusFor(_ widthLimit: Double) -> HazardStatus {
+        if viewModel.truckProfile.width > widthLimit { return .blocked }
+        if viewModel.truckProfile.width > widthLimit - 0.3 { return .tight }
+        return .safe
+    }
+
+    private func weightStatusFor(_ weightLimit: Double) -> HazardStatus {
+        if viewModel.truckProfile.weight > weightLimit { return .blocked }
+        if viewModel.truckProfile.weight > weightLimit * 0.9 { return .tight }
+        return .safe
     }
 
     private var hazardShareText: String {

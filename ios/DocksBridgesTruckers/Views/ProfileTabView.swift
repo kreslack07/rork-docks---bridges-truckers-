@@ -371,7 +371,7 @@ struct ProfileTabView: View {
                     Image(systemName: "internaldrive.fill")
                         .foregroundStyle(.secondary)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text("Cached Data")
+                        Text("Data")
                             .font(.subheadline.bold())
                         Text("\(viewModel.hazards.count) hazards · \(viewModel.docks.count) docks")
                             .font(.caption)
@@ -383,7 +383,41 @@ struct ProfileTabView: View {
                         }
                     }
                     Spacer()
+
+                    dataSourceBadge
                 }
+
+                if let error = viewModel.refreshError {
+                    HStack(spacing: 6) {
+                        Image(systemName: "info.circle")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                        Text(error)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Button {
+                    Task { await viewModel.refreshData() }
+                } label: {
+                    HStack(spacing: 6) {
+                        if viewModel.isRefreshing {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.caption.bold())
+                        }
+                        Text(viewModel.isRefreshing ? "Refreshing..." : "Refresh Data")
+                            .font(.caption.bold())
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(AppTheme.accent.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+                    .foregroundStyle(AppTheme.accent)
+                }
+                .disabled(viewModel.isRefreshing)
             }
             .padding(12)
             .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
@@ -514,6 +548,24 @@ struct ProfileTabView: View {
                     hasUnsavedChanges = true
                 }
         }
+    }
+
+    private var dataSourceBadge: some View {
+        let (label, color, icon): (String, Color, String) = switch viewModel.dataSource {
+        case "live": ("Live", .green, "antenna.radiowaves.left.and.right")
+        case "cached": ("Cached", .orange, "internaldrive")
+        default: ("Bundled", .secondary, "shippingbox")
+        }
+        return HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 8))
+            Text(label)
+                .font(.system(size: 9, weight: .heavy))
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(color.opacity(0.12), in: Capsule())
     }
 
     private func openReportEmail(subject: String, body: String) {

@@ -42,6 +42,9 @@ final class AppViewModel {
     var activeRoute: MKRoute?
     var activeRouteHazards: [Hazard] = []
     var lastDataRefresh: Date?
+    var dataSource: String = "bundled"
+    var isRefreshing: Bool = false
+    var refreshError: String?
 
     private static let relativeDateFormatter: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()
@@ -243,27 +246,35 @@ final class AppViewModel {
     }
 
     func refreshData() async {
-        try? await Task.sleep(for: .milliseconds(800))
-        var refreshedHazards = MockData.hazards
-        var refreshedDocks = MockData.docks
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        refreshError = nil
 
-        if let cachedHazards = CacheService.loadHazards(), !cachedHazards.isEmpty {
-            let cachedIDs = Set(cachedHazards.map(\.id))
-            let newFromMock = MockData.hazards.filter { !cachedIDs.contains($0.id) }
-            refreshedHazards = cachedHazards + newFromMock
-        }
-        if let cachedDocks = CacheService.loadDocks(), !cachedDocks.isEmpty {
-            let cachedIDs = Set(cachedDocks.map(\.id))
-            let newFromMock = MockData.docks.filter { !cachedIDs.contains($0.id) }
-            refreshedDocks = cachedDocks + newFromMock
-        }
+        let result = await DataRefreshService.refreshData(
+            currentHazards: hazards,
+            currentDocks: docks
+        )
 
-        hazards = refreshedHazards
-        docks = refreshedDocks
+        hazards = result.hazards
+        docks = result.docks
         lastDataRefresh = Date()
+
+        switch result.source {
+        case .api:
+            dataSource = "live"
+            refreshError = nil
+        case .cache:
+            dataSource = "cached"
+            refreshError = "Server unavailable. Showing cached data."
+        case .bundled:
+            dataSource = "bundled"
+            refreshError = "Server unavailable. Showing bundled data."
+        }
+
         CacheService.saveHazards(hazards)
         CacheService.saveDocks(docks)
         syncWidgetData()
+        isRefreshing = false
     }
 
     func setRoute(_ route: MKRoute, hazards: [Hazard]) {

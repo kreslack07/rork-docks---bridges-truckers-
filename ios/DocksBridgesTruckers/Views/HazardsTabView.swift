@@ -176,6 +176,12 @@ struct HazardRowView: View {
                         .foregroundStyle(status.color)
                 }
 
+                if let widthLimit = hazard.widthLimit {
+                    Text(String(format: "W: %.1fm", widthLimit))
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.secondary)
+                }
+
                 HStack(spacing: 3) {
                     Image(systemName: status.icon)
                         .font(.system(size: 8))
