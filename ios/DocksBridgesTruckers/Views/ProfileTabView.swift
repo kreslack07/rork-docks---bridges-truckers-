@@ -8,6 +8,7 @@ struct ProfileTabView: View {
     @State private var editHeight: String = ""
     @State private var editWeight: String = ""
     @State private var editWidth: String = ""
+    @State private var editLength: String = ""
     @State private var editPlate: String = ""
     @State private var showSaved: Bool = false
     @State private var saveTask: Task<Void, Never>?
@@ -132,7 +133,11 @@ struct ProfileTabView: View {
                 HStack(spacing: 10) {
                     formField(title: "Height (m)", text: $editHeight, icon: "arrow.up.and.down", keyboard: .decimalPad)
                     formField(title: "Weight (t)", text: $editWeight, icon: "scalemass", keyboard: .decimalPad)
+                }
+
+                HStack(spacing: 10) {
                     formField(title: "Width (m)", text: $editWidth, icon: "arrow.left.and.right", keyboard: .decimalPad)
+                    formField(title: "Length (m)", text: $editLength, icon: "ruler", keyboard: .decimalPad)
                 }
 
                 formField(title: "Plate Number", text: $editPlate, icon: "rectangle.fill", keyboard: .default)
@@ -512,6 +517,7 @@ struct ProfileTabView: View {
         editHeight = String(format: "%.1f", viewModel.truckProfile.height)
         editWeight = String(format: "%.1f", viewModel.truckProfile.weight)
         editWidth = String(format: "%.1f", viewModel.truckProfile.width)
+        editLength = String(format: "%.1f", viewModel.truckProfile.length)
         editPlate = viewModel.truckProfile.plateNumber
         hasUnsavedChanges = false
         isLoadingProfile = false
@@ -521,13 +527,16 @@ struct ProfileTabView: View {
         let height = Double(editHeight)
         let weight = Double(editWeight)
         let width = Double(editWidth)
+        let length = Double(editLength)
         guard let h = height, h > 0, h <= 10,
               let w = weight, w > 0, w <= 200,
-              let wd = width, wd > 0, wd <= 6 else { return }
+              let wd = width, wd > 0, wd <= 6,
+              let l = length, l > 0, l <= 60 else { return }
         viewModel.truckProfile.name = editName
         viewModel.truckProfile.height = h
         viewModel.truckProfile.weight = w
         viewModel.truckProfile.width = wd
+        viewModel.truckProfile.length = l
         viewModel.truckProfile.plateNumber = editPlate
         viewModel.saveProfile()
         hasUnsavedChanges = false
@@ -538,6 +547,7 @@ struct ProfileTabView: View {
         let height = Double(editHeight)
         let weight = Double(editWeight)
         let width = Double(editWidth)
+        let length = Double(editLength)
 
         if editHeight.isEmpty { errors.append("Height is required") }
         else if height == nil { errors.append("Height is not a valid number") }
@@ -554,6 +564,11 @@ struct ProfileTabView: View {
         else if let wd = width, wd <= 0 { errors.append("Width must be positive") }
         else if let wd = width, wd > 6 { errors.append("Width cannot exceed 6m") }
 
+        if editLength.isEmpty { errors.append("Length is required") }
+        else if length == nil { errors.append("Length is not a valid number") }
+        else if let l = length, l <= 0 { errors.append("Length must be positive") }
+        else if let l = length, l > 60 { errors.append("Length cannot exceed 60m") }
+
         if !errors.isEmpty {
             validationError = errors.joined(separator: ". ")
             return
@@ -564,6 +579,7 @@ struct ProfileTabView: View {
         if let h = height, h > 0 { viewModel.truckProfile.height = h }
         if let w = weight, w > 0 { viewModel.truckProfile.weight = w }
         if let wd = width, wd > 0 { viewModel.truckProfile.width = wd }
+        if let l = length, l > 0 { viewModel.truckProfile.length = l }
         viewModel.truckProfile.plateNumber = editPlate
         viewModel.saveProfile()
         hasUnsavedChanges = false

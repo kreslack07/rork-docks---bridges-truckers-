@@ -43,6 +43,17 @@ nonisolated enum TruckType: String, CaseIterable, Sendable, Codable {
         }
     }
 
+    var defaultLength: Double {
+        switch self {
+        case .semi_trailer: 19.0
+        case .b_double: 25.0
+        case .rigid: 12.5
+        case .delivery_van: 6.5
+        case .road_train: 36.5
+        case .custom: 12.0
+        }
+    }
+
     var icon: String {
         switch self {
         case .semi_trailer: "truck.box.fill"
@@ -60,6 +71,7 @@ nonisolated struct TruckProfile: Codable, Sendable, Equatable {
     var height: Double
     var weight: Double
     var width: Double
+    var length: Double
     var type: TruckType
     var plateNumber: String
 
@@ -68,7 +80,33 @@ nonisolated struct TruckProfile: Codable, Sendable, Equatable {
         height: 4.3,
         weight: 42.5,
         width: 2.5,
+        length: 19.0,
         type: .semi_trailer,
         plateNumber: ""
     )
+
+    init(name: String, height: Double, weight: Double, width: Double, length: Double = 19.0, type: TruckType, plateNumber: String) {
+        self.name = name
+        self.height = height
+        self.weight = weight
+        self.width = width
+        self.length = length
+        self.type = type
+        self.plateNumber = plateNumber
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(String.self, forKey: .name)
+        height = try container.decode(Double.self, forKey: .height)
+        weight = try container.decode(Double.self, forKey: .weight)
+        width = try container.decode(Double.self, forKey: .width)
+        length = try container.decodeIfPresent(Double.self, forKey: .length) ?? 19.0
+        type = try container.decode(TruckType.self, forKey: .type)
+        plateNumber = try container.decode(String.self, forKey: .plateNumber)
+    }
+
+    private nonisolated enum CodingKeys: String, CodingKey {
+        case name, height, weight, width, length, type, plateNumber
+    }
 }

@@ -122,6 +122,7 @@ nonisolated struct PDFExportService {
             drawText("Height:  \(String(format: "%.1f", truckProfile.height)) m", font: bodyFont, x: col2X, maxWidth: contentWidth / 2 - 20)
             drawText("Weight:  \(String(format: "%.1f", truckProfile.weight)) t", font: bodyFont, x: col2X, maxWidth: contentWidth / 2 - 20)
             drawText("Width:  \(String(format: "%.1f", truckProfile.width)) m", font: bodyFont, x: col2X, maxWidth: contentWidth / 2 - 20)
+            drawText("Length:  \(String(format: "%.1f", truckProfile.length)) m", font: bodyFont, x: col2X, maxWidth: contentWidth / 2 - 20)
 
             let plateDisplay = truckProfile.plateNumber.isEmpty ? "Not Set" : truckProfile.plateNumber
             drawText("Plate:  \(plateDisplay)", font: bodyFont, x: profileX, maxWidth: contentWidth / 2 - 20)

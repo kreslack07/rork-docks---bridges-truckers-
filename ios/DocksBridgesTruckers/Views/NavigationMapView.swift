@@ -11,6 +11,8 @@ struct NavigationMapView: View {
     @State private var showStepsList: Bool = false
     @State private var showHazardAlert: Bool = false
     @State private var alertedHazard: Hazard?
+    @State private var isCameraLocked: Bool = true
+    @State private var speedKmh: Double = 0
 
     private let hazardAlertThreshold: CLLocationDistance = 2000
 
@@ -46,7 +48,10 @@ struct NavigationMapView: View {
         .onChange(of: locationService.userLocation) { _, newLocation in
             guard let location = newLocation else { return }
             navigationService.updateLocation(location)
-            updateCamera(for: location)
+            speedKmh = max(0, location.speed * 3.6)
+            if isCameraLocked {
+                updateCamera(for: location)
+            }
         }
         .onAppear {
             locationService.startNavigationMode()
@@ -229,63 +234,104 @@ struct NavigationMapView: View {
     }
 
     private var bottomBar: some View {
-        HStack(spacing: 0) {
-            Button {
-                navigationService.stopNavigation()
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.title3.bold())
-                    .foregroundStyle(.white)
-                    .frame(width: 50, height: 50)
-                    .background(.red, in: Circle())
-            }
+        VStack(spacing: 10) {
+            HStack(spacing: 16) {
+                VStack(spacing: 2) {
+                    Text(String(format: "%.0f", speedKmh))
+                        .font(.system(size: 28, weight: .heavy, design: .rounded).monospacedDigit())
+                        .foregroundStyle(.primary)
+                    Text("km/h")
+                        .font(.caption2.bold())
+                        .foregroundStyle(.secondary)
+                }
+                .frame(width: 64, height: 64)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
 
-            Spacer()
-
-            VStack(spacing: 2) {
-                Text(navigationService.formatETA(navigationService.estimatedTimeRemaining))
-                    .font(.title3.bold())
-                    .foregroundStyle(.primary)
-                Text(navigationService.formatDistance(navigationService.totalDistanceRemaining))
+                VStack(spacing: 4) {
+                    Text(navigationService.formatETA(navigationService.estimatedTimeRemaining))
+                        .font(.title3.bold())
+                    HStack(spacing: 12) {
+                        Label(navigationService.formatDistance(navigationService.totalDistanceRemaining), systemImage: "road.lanes")
+                        if let arrival = arrivalTime {
+                            Label(arrival, systemImage: "clock")
+                        }
+                    }
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Button {
-                showStepsList = true
-            } label: {
-                Image(systemName: "list.bullet")
-                    .font(.title3.bold())
-                    .foregroundStyle(.primary)
-                    .frame(width: 50, height: 50)
-                    .background(.thickMaterial, in: Circle())
-            }
-
-            Spacer()
-
-            Button {
-                if let loc = locationService.userLocation {
-                    position = .camera(MapCamera(
-                        centerCoordinate: loc.coordinate,
-                        distance: 800,
-                        heading: loc.course >= 0 ? loc.course : 0,
-                        pitch: 50
-                    ))
                 }
-            } label: {
-                Image(systemName: "location.fill")
-                    .font(.title3.bold())
-                    .foregroundStyle(.blue)
-                    .frame(width: 50, height: 50)
-                    .background(.thickMaterial, in: Circle())
+                .frame(maxWidth: .infinity)
+
+                truckDimensionsBadge
+            }
+
+            HStack(spacing: 12) {
+                Button {
+                    navigationService.stopNavigation()
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.body.bold())
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .background(.red, in: Circle())
+                }
+
+                Spacer()
+
+                Button {
+                    showStepsList = true
+                } label: {
+                    Image(systemName: "list.bullet")
+                        .font(.body.bold())
+                        .foregroundStyle(.primary)
+                        .frame(width: 44, height: 44)
+                        .background(.thickMaterial, in: Circle())
+                }
+
+                Button {
+                    isCameraLocked = true
+                    if let loc = locationService.userLocation {
+                        updateCamera(for: loc)
+                    }
+                } label: {
+                    Image(systemName: isCameraLocked ? "location.fill" : "location")
+                        .font(.body.bold())
+                        .foregroundStyle(isCameraLocked ? .white : .blue)
+                        .frame(width: 44, height: 44)
+                        .background(isCameraLocked ? AnyShapeStyle(.blue) : AnyShapeStyle(.thickMaterial), in: Circle())
+                }
             }
         }
         .padding(14)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22))
         .shadow(color: .black.opacity(0.15), radius: 12, y: 4)
+    }
+
+    private var truckDimensionsBadge: some View {
+        VStack(spacing: 3) {
+            HStack(spacing: 4) {
+                Image(systemName: "arrow.up.and.down")
+                    .font(.system(size: 8, weight: .bold))
+                Text(String(format: "%.1fm", viewModel.truckProfile.height))
+                    .font(.system(size: 10, weight: .heavy).monospacedDigit())
+            }
+            HStack(spacing: 4) {
+                Image(systemName: "scalemass")
+                    .font(.system(size: 8, weight: .bold))
+                Text(String(format: "%.1ft", viewModel.truckProfile.weight))
+                    .font(.system(size: 10, weight: .heavy).monospacedDigit())
+            }
+        }
+        .foregroundStyle(.secondary)
+        .padding(8)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var arrivalTime: String? {
+        let arrival = Date().addingTimeInterval(navigationService.estimatedTimeRemaining)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        return formatter.string(from: arrival)
     }
 
     private var arrivedOverlay: some View {
@@ -398,12 +444,23 @@ struct NavigationMapView: View {
 
     private func updateCamera(for location: CLLocation) {
         let heading = location.course >= 0 ? location.course : 0
-        withAnimation(.easeInOut(duration: 0.8)) {
+        let speed = max(0, location.speed)
+        let distance: Double
+        if speed < 5 {
+            distance = 600
+        } else if speed < 20 {
+            distance = 800
+        } else if speed < 40 {
+            distance = 1000
+        } else {
+            distance = 1400
+        }
+        withAnimation(.easeInOut(duration: 1.0)) {
             position = .camera(MapCamera(
                 centerCoordinate: location.coordinate,
-                distance: 1200,
+                distance: distance,
                 heading: heading,
-                pitch: 45
+                pitch: 55
             ))
         }
     }

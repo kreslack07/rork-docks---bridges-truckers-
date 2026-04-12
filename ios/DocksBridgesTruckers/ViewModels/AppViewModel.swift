@@ -138,6 +138,7 @@ final class AppViewModel {
         truckProfile.height = type.defaultHeight
         truckProfile.weight = type.defaultWeight
         truckProfile.width = type.defaultWidth
+        truckProfile.length = type.defaultLength
         saveProfile()
     }
 

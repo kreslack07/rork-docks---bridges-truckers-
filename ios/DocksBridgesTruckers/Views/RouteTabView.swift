@@ -201,6 +201,7 @@ struct RouteTabView: View {
             HStack(spacing: 6) {
                 Label(String(format: "%.1fm", viewModel.truckProfile.height), systemImage: "arrow.up.and.down")
                 Label(String(format: "%.1ft", viewModel.truckProfile.weight), systemImage: "scalemass")
+                Label(String(format: "%.1fm", viewModel.truckProfile.length), systemImage: "arrow.left.and.right")
             }
             .font(.caption2.bold())
             .foregroundStyle(.primary)
@@ -354,41 +355,83 @@ struct RouteTabView: View {
     // MARK: - Search Bar
 
     private var searchBar: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                    .font(.body)
+
+                TextField("Where to?", text: $destination, onEditingChanged: { editing in
+                    isTyping = editing
+                    if editing && !destination.isEmpty {
+                        sheetDetent = .fraction(0.4)
+                    }
+                })
                 .font(.body)
-
-            TextField("Where to?", text: $destination, onEditingChanged: { editing in
-                isTyping = editing
-                if editing && !destination.isEmpty {
-                    sheetDetent = .fraction(0.4)
+                .textContentType(.fullStreetAddress)
+                .onSubmit {
+                    isTyping = false
+                    searchCompleter.clear()
+                    performSearch()
                 }
-            })
-            .font(.body)
-            .textContentType(.fullStreetAddress)
-            .onSubmit {
-                isTyping = false
-                searchCompleter.clear()
-                performSearch()
-            }
 
-            if isSearching || searchCompleter.isSearching {
-                ProgressView()
-                    .scaleEffect(0.8)
-            }
+                if isSearching || searchCompleter.isSearching {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                }
 
-            if !destination.isEmpty {
-                Button {
-                    clearAll()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
+                if !destination.isEmpty {
+                    Button {
+                        clearAll()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
+            .padding(12)
+            .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+
+            vehicleDimensionsBar
         }
-        .padding(14)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+        .padding(12)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    @State private var showVehicleEditor: Bool = false
+
+    private var vehicleDimensionsBar: some View {
+        Button {
+            showVehicleEditor = true
+        } label: {
+            HStack(spacing: 0) {
+                dimensionPill(icon: "arrow.up.and.down", value: String(format: "%.1fm", viewModel.truckProfile.height), label: "H")
+                Divider().frame(height: 20)
+                dimensionPill(icon: "scalemass", value: String(format: "%.1ft", viewModel.truckProfile.weight), label: "W")
+                Divider().frame(height: 20)
+                dimensionPill(icon: "arrow.left.and.right", value: String(format: "%.1fm", viewModel.truckProfile.length), label: "L")
+            }
+            .padding(.vertical, 6)
+            .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
+        }
+        .sheet(isPresented: $showVehicleEditor) {
+            VehicleDimensionsSheet()
+                .environment(viewModel)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+        }
+    }
+
+    private func dimensionPill(icon: String, value: String, label: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(AppTheme.accent)
+            Text(value)
+                .font(.caption.bold())
+                .foregroundStyle(.primary)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Autocomplete List
