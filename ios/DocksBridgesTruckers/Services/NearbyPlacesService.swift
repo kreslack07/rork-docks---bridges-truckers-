@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import MapKit
 import CoreLocation
 
@@ -76,8 +77,6 @@ nonisolated enum NearbyCategory: String, CaseIterable, Sendable {
         }
     }
 }
-
-import SwiftUI
 
 @Observable
 final class NearbyPlacesService {

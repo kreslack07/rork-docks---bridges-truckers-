@@ -64,6 +64,8 @@ struct NavigationMapView: View {
         .onDisappear {
             locationService.stopNavigationMode()
         }
+        .sensoryFeedback(.impact(weight: .medium), trigger: navigationService.isNavigating)
+        .sensoryFeedback(.success, trigger: navigationService.hasArrived)
         .sheet(isPresented: $showStepsList) {
             stepsListSheet
         }

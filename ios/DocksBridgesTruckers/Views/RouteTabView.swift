@@ -1061,16 +1061,11 @@ struct RouteTabView: View {
     }
 
     private func formatDuration(_ seconds: TimeInterval) -> String {
-        let hours = Int(seconds) / 3600
-        let minutes = (Int(seconds) % 3600) / 60
-        if hours > 0 { return "\(hours)h \(minutes)m" }
-        return "\(minutes)m"
+        Formatters.duration(seconds)
     }
 
     private func formatDistance(_ meters: Double) -> String {
-        let km = meters / 1000
-        if km >= 100 { return String(format: "%.0f km", km) }
-        return String(format: "%.1f km", km)
+        Formatters.distance(meters)
     }
 }
 

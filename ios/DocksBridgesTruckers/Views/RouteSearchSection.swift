@@ -1,74 +1,6 @@
 import SwiftUI
 import MapKit
 
-struct RouteSearchBarView: View {
-    @Binding var destination: String
-    @Binding var isTyping: Bool
-    @Binding var showVehicleEditor: Bool
-    let isSearching: Bool
-    let isCompleterSearching: Bool
-    let truckProfile: TruckProfile
-    let onSubmit: () -> Void
-    let onClear: () -> Void
-
-    var body: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                    .font(.body)
-
-                TextField("Where to?", text: $destination, onEditingChanged: { editing in
-                    isTyping = editing
-                })
-                .font(.body)
-                .textContentType(.fullStreetAddress)
-                .onSubmit { onSubmit() }
-
-                if isSearching || isCompleterSearching {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                }
-
-                if !destination.isEmpty {
-                    Button { onClear() } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .padding(12)
-            .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
-
-            Button { showVehicleEditor = true } label: {
-                HStack(spacing: 0) {
-                    dimensionPill(icon: "arrow.up.and.down", value: String(format: "%.1fm", truckProfile.height))
-                    Divider().frame(height: 20)
-                    dimensionPill(icon: "scalemass", value: String(format: "%.1ft", truckProfile.weight))
-                    Divider().frame(height: 20)
-                    dimensionPill(icon: "arrow.left.and.right", value: String(format: "%.1fm", truckProfile.length))
-                }
-                .padding(.vertical, 6)
-                .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
-            }
-        }
-        .padding(12)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
-    }
-
-    private func dimensionPill(icon: String, value: String) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(AppTheme.accent)
-            Text(value)
-                .font(.caption.bold())
-                .foregroundStyle(.primary)
-        }
-        .frame(maxWidth: .infinity)
-    }
-}
-
 struct RouteAutocompleteListView: View {
     let completions: [MKLocalSearchCompletion]
     let onSelect: (MKLocalSearchCompletion) -> Void
@@ -218,16 +150,11 @@ struct RouteInfoCardView: View {
     }
 
     private func formatDuration(_ seconds: TimeInterval) -> String {
-        let hours = Int(seconds) / 3600
-        let minutes = (Int(seconds) % 3600) / 60
-        if hours > 0 { return "\(hours)h \(minutes)m" }
-        return "\(minutes)m"
+        Formatters.duration(seconds)
     }
 
     private func formatDistance(_ meters: Double) -> String {
-        let km = meters / 1000
-        if km >= 100 { return String(format: "%.0f km", km) }
-        return String(format: "%.1f km", km)
+        Formatters.distance(meters)
     }
 }
 

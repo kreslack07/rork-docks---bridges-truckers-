@@ -261,18 +261,24 @@ final class AppViewModel {
         guard let ns = notificationService else { return }
         let blocked = routeHazards.filter { hazardStatus($0) == .blocked }
         let tight = routeHazards.filter { hazardStatus($0) == .tight }
-        for hazard in blocked {
-            let clearance = hazard.type == .weight_limit
-                ? String(format: "%.0ft limit", hazard.weightLimit ?? 0)
-                : String(format: "%.1fm clearance", hazard.clearanceHeight)
-            ns.scheduleProximityAlert(hazardName: hazard.name, distance: clearance)
+        guard !blocked.isEmpty || !tight.isEmpty else { return }
+        var summary = ""
+        if !blocked.isEmpty {
+            let names = blocked.prefix(3).map(\.name).joined(separator: ", ")
+            summary += "\(blocked.count) BLOCKED: \(names)"
+            if blocked.count > 3 { summary += " +\(blocked.count - 3) more" }
         }
-        for hazard in tight {
-            let clearance = hazard.type == .weight_limit
-                ? String(format: "%.0ft limit", hazard.weightLimit ?? 0)
-                : String(format: "%.1fm clearance", hazard.clearanceHeight)
-            ns.scheduleHazardAlert(hazardName: hazard.name, status: "TIGHT", clearance: clearance)
+        if !tight.isEmpty {
+            if !summary.isEmpty { summary += "\n" }
+            let names = tight.prefix(3).map(\.name).joined(separator: ", ")
+            summary += "\(tight.count) TIGHT: \(names)"
+            if tight.count > 3 { summary += " +\(tight.count - 3) more" }
         }
+        ns.scheduleRouteSummaryAlert(
+            blockedCount: blocked.count,
+            tightCount: tight.count,
+            summary: summary
+        )
     }
 
     func syncWidgetData() {

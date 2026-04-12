@@ -5,6 +5,7 @@ struct VehicleDimensionsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var editHeight: String = ""
     @State private var editWeight: String = ""
+    @State private var editWidth: String = ""
     @State private var editLength: String = ""
     @State private var validationError: String?
 
@@ -32,6 +33,7 @@ struct VehicleDimensionsSheet: View {
                     VStack(spacing: 12) {
                         dimensionRow(icon: "arrow.up.and.down", label: "Height", unit: "m", text: $editHeight, hint: "Vehicle height in metres")
                         dimensionRow(icon: "scalemass", label: "Weight", unit: "t", text: $editWeight, hint: "Gross vehicle mass in tonnes")
+                        dimensionRow(icon: "arrow.left.and.right.square", label: "Width", unit: "m", text: $editWidth, hint: "Vehicle width in metres")
                         dimensionRow(icon: "arrow.left.and.right", label: "Length", unit: "m", text: $editLength, hint: "Total vehicle length in metres")
                     }
 
@@ -77,6 +79,7 @@ struct VehicleDimensionsSheet: View {
         .onAppear {
             editHeight = String(format: "%.1f", viewModel.truckProfile.height)
             editWeight = String(format: "%.1f", viewModel.truckProfile.weight)
+            editWidth = String(format: "%.1f", viewModel.truckProfile.width)
             editLength = String(format: "%.1f", viewModel.truckProfile.length)
         }
     }
@@ -131,6 +134,7 @@ struct VehicleDimensionsSheet: View {
                             viewModel.updateTruckType(type)
                             editHeight = String(format: "%.1f", type.defaultHeight)
                             editWeight = String(format: "%.1f", type.defaultWeight)
+                            editWidth = String(format: "%.1f", type.defaultWidth)
                             editLength = String(format: "%.1f", type.defaultLength)
                         } label: {
                             VStack(spacing: 4) {
@@ -164,6 +168,10 @@ struct VehicleDimensionsSheet: View {
             validationError = "Weight must be between 0 and 200t"
             return
         }
+        guard let wd = Double(editWidth), wd > 0, wd <= 6 else {
+            validationError = "Width must be between 0 and 6m"
+            return
+        }
         guard let l = Double(editLength), l > 0, l <= 60 else {
             validationError = "Length must be between 0 and 60m"
             return
@@ -171,6 +179,7 @@ struct VehicleDimensionsSheet: View {
         validationError = nil
         viewModel.truckProfile.height = h
         viewModel.truckProfile.weight = w
+        viewModel.truckProfile.width = wd
         viewModel.truckProfile.length = l
         viewModel.saveProfile()
         dismiss()

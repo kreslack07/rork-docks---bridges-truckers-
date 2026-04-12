@@ -84,6 +84,33 @@ final class NotificationService {
         center.add(request)
     }
 
+    func scheduleRouteSummaryAlert(blockedCount: Int, tightCount: Int, summary: String) {
+        guard isAuthorized, notificationsEnabled else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Route Hazards Found"
+        var body = ""
+        if blockedCount > 0 { body += "\(blockedCount) blocked" }
+        if tightCount > 0 {
+            if !body.isEmpty { body += ", " }
+            body += "\(tightCount) tight"
+        }
+        body += " hazards on your route"
+        content.body = body
+        content.sound = .default
+        content.categoryIdentifier = "ROUTE_SUMMARY"
+        if blockedCount > 0 {
+            content.interruptionLevel = .timeSensitive
+        }
+
+        let request = UNNotificationRequest(
+            identifier: "route_summary_\(Date().timeIntervalSince1970)",
+            content: content,
+            trigger: nil
+        )
+        center.add(request)
+    }
+
     func removeAllPendingNotifications() {
         center.removeAllPendingNotificationRequests()
     }
