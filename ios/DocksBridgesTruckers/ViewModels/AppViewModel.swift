@@ -43,6 +43,12 @@ final class AppViewModel {
     var activeRouteHazards: [Hazard] = []
     var lastDataRefresh: Date?
 
+    private static let relativeDateFormatter: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter
+    }()
+
     private var statusCache: [String: HazardStatus] = [:]
     private var dockIndex: [String: Dock] = [:]
     private var hazardIndex: [String: Hazard] = [:]
@@ -79,9 +85,7 @@ final class AppViewModel {
 
     var lastRefreshFormatted: String? {
         guard let date = lastDataRefresh else { return nil }
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
+        return Self.relativeDateFormatter.localizedString(for: date, relativeTo: Date())
     }
 
     private func invalidateCaches() {

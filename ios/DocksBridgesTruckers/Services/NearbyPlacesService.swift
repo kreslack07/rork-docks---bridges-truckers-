@@ -2,7 +2,11 @@ import Foundation
 import MapKit
 import CoreLocation
 
-nonisolated struct NearbyPlace: Identifiable, Sendable {
+nonisolated struct NearbyPlace: Identifiable, Sendable, Equatable {
+    nonisolated static func == (lhs: NearbyPlace, rhs: NearbyPlace) -> Bool {
+        lhs.id == rhs.id
+    }
+
     let id: String
     let name: String
     let category: NearbyCategory
