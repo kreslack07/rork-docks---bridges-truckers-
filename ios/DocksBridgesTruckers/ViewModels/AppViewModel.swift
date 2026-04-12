@@ -92,15 +92,18 @@ final class AppViewModel {
     }
 
     private func invalidateCaches() {
-        statusCache = [:]
+        statusCache.removeAll(keepingCapacity: true)
         _filteredHazardsCache = nil
         _filteredHazardsFilter = nil
         var blocked = 0
         var tight = 0
         for hazard in hazards {
             let s = hazardStatus(hazard)
-            if s == .blocked { blocked += 1 }
-            else if s == .tight { tight += 1 }
+            switch s {
+            case .blocked: blocked += 1
+            case .tight: tight += 1
+            case .safe: break
+            }
         }
         blockedCount = blocked
         tightCount = tight
@@ -255,8 +258,13 @@ final class AppViewModel {
             currentDocks: docks
         )
 
+        isInitialized = false
         hazards = result.hazards
         docks = result.docks
+        isInitialized = true
+        rebuildDockIndex()
+        rebuildHazardIndex()
+        invalidateCaches()
         lastDataRefresh = Date()
 
         switch result.source {

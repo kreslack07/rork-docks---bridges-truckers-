@@ -44,8 +44,10 @@ struct RouteTabView: View {
     @State private var searchTask: Task<Void, Never>?
     @State private var hasCenteredOnUser: Bool = false
 
+    @State private var cachedRouteHazardIDs: Set<String> = []
+
     private var nonRouteHazards: [Hazard] {
-        let routeIDs = Set(viewModel.activeRouteHazards.map(\.id))
+        let routeIDs = cachedRouteHazardIDs
         return viewModel.filteredHazards.filter { !routeIDs.contains($0.id) }
     }
 
@@ -129,6 +131,14 @@ struct RouteTabView: View {
                 if !newValue.isEmpty && selectedDestination == nil {
                     sheetDetent = .fraction(0.4)
                 }
+            }
+        }
+        .onChange(of: viewModel.activeRouteHazards) { _, newValue in
+            cachedRouteHazardIDs = Set(newValue.map(\.id))
+        }
+        .onChange(of: hazardsOnRoute) { _, newValue in
+            if !newValue.isEmpty {
+                cachedRouteHazardIDs = Set(newValue.map(\.id))
             }
         }
         .sensoryFeedback(.selection, trigger: selectedDestination?.name)
@@ -578,7 +588,7 @@ struct RouteTabView: View {
                         .lineLimit(1)
                 }
                 if let dist = place.distance {
-                    Text(formatDistance(dist))
+                    Text(Formatters.distance(dist))
                         .font(.caption2.bold())
                         .foregroundStyle(place.category.color)
                 }
@@ -704,7 +714,7 @@ struct RouteTabView: View {
                                 Spacer()
 
                                 if let dist = place.distance {
-                                    Text(formatDistance(dist))
+                                    Text(Formatters.distance(dist))
                                         .font(.caption.bold())
                                         .foregroundStyle(place.category.color)
                                 }
@@ -1049,7 +1059,7 @@ struct RouteTabView: View {
     }
 
     private func routeSummaryText(_ route: MKRoute) -> String {
-        var text = "Route: \(formatDistance(route.distance)), \(formatDuration(route.expectedTravelTime))"
+        var text = "Route: \(Formatters.distance(route.distance)), \(Formatters.duration(route.expectedTravelTime))"
         if !hazardsOnRoute.isEmpty {
             let blocked = hazardsOnRoute.filter { viewModel.hazardStatus($0) == .blocked }.count
             let tight = hazardsOnRoute.filter { viewModel.hazardStatus($0) == .tight }.count
@@ -1060,12 +1070,5 @@ struct RouteTabView: View {
         return text
     }
 
-    private func formatDuration(_ seconds: TimeInterval) -> String {
-        Formatters.duration(seconds)
-    }
-
-    private func formatDistance(_ meters: Double) -> String {
-        Formatters.distance(meters)
-    }
 }
 

@@ -11,7 +11,6 @@ struct ProfileTabView: View {
     @State private var editLength: String = ""
     @State private var editPlate: String = ""
     @State private var showSaved: Bool = false
-    @State private var saveTask: Task<Void, Never>?
     @State private var showReportHazardAlert: Bool = false
     @State private var showReportDockAlert: Bool = false
     @State private var validationError: String?
@@ -51,7 +50,6 @@ struct ProfileTabView: View {
                 }
             }
             .onDisappear {
-                saveTask?.cancel()
                 if hasUnsavedChanges {
                     silentSaveProfile()
                 }
@@ -652,12 +650,9 @@ struct ProfileTabView: View {
         viewModel.saveProfile()
         hasUnsavedChanges = false
         showSaved = true
-        saveTask?.cancel()
-        let task = Task {
+        Task {
             try? await Task.sleep(for: .seconds(2))
-            guard !Task.isCancelled else { return }
             showSaved = false
         }
-        saveTask = task
     }
 }

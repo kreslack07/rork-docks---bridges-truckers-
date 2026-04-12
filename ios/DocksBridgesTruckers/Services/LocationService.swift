@@ -69,5 +69,9 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         }
     }
 
-    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        #if DEBUG
+        print("[LocationService] Error: \(error.localizedDescription)")
+        #endif
+    }
 }

@@ -14,6 +14,7 @@ final class NavigationService {
     var hasArrived: Bool = false
     var upcomingHazards: [Hazard] = []
     var nextHazardDistance: CLLocationDistance?
+    @ObservationIgnored private var hazardLocationCache: [String: CLLocation] = [:]
 
     var currentStep: MKRoute.Step? {
         guard currentStepIndex < routeSteps.count else { return nil }
@@ -33,7 +34,9 @@ final class NavigationService {
         totalDistanceRemaining = route.distance
         estimatedTimeRemaining = route.expectedTravelTime
         hasArrived = false
+        cachedDestination = nil
         upcomingHazards = hazards
+        rebuildHazardLocationCache()
         isNavigating = true
 
         if let first = routeSteps.first {
@@ -52,6 +55,8 @@ final class NavigationService {
         hasArrived = false
         upcomingHazards = []
         nextHazardDistance = nil
+        hazardLocationCache = [:]
+        cachedDestination = nil
     }
 
     func updateLocation(_ location: CLLocation) {
@@ -76,7 +81,13 @@ final class NavigationService {
         }
 
         if let dest = destinationCoordinate {
-            let destLocation = CLLocation(latitude: dest.latitude, longitude: dest.longitude)
+            let destLocation: CLLocation
+            if let cached = cachedDestination {
+                destLocation = cached
+            } else {
+                destLocation = CLLocation(latitude: dest.latitude, longitude: dest.longitude)
+                cachedDestination = destLocation
+            }
             totalDistanceRemaining = location.distance(from: destLocation)
 
             let speed = location.speed > 1 ? location.speed : 10
@@ -98,7 +109,7 @@ final class NavigationService {
 
         var closestDistance: CLLocationDistance = .greatestFiniteMagnitude
         for hazard in upcomingHazards {
-            let hazardLocation = CLLocation(latitude: hazard.latitude, longitude: hazard.longitude)
+            let hazardLocation = hazardLocationCache[hazard.id] ?? CLLocation(latitude: hazard.latitude, longitude: hazard.longitude)
             let dist = location.distance(from: hazardLocation)
             if dist < closestDistance {
                 closestDistance = dist
@@ -106,6 +117,14 @@ final class NavigationService {
         }
         nextHazardDistance = closestDistance < 50_000 ? closestDistance : nil
     }
+
+    private func rebuildHazardLocationCache() {
+        hazardLocationCache = Dictionary(uniqueKeysWithValues: upcomingHazards.map {
+            ($0.id, CLLocation(latitude: $0.latitude, longitude: $0.longitude))
+        })
+    }
+
+    @ObservationIgnored private var cachedDestination: CLLocation?
 
     private var destinationCoordinate: CLLocationCoordinate2D? {
         guard let route = currentRoute else { return nil }
